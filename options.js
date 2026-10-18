@@ -1,503 +1,215 @@
-(function () {
+(() => {
   "use strict";
-
-  const els = {
-    buildPatternButton: document.getElementById("buildPatternButton"),
-    cancelImportButton: document.getElementById("cancelImportButton"),
-    closeImportButton: document.getElementById("closeImportButton"),
-    confirmImportButton: document.getElementById("confirmImportButton"),
-    cssInput: document.getElementById("cssInput"),
-    deleteButton: document.getElementById("deleteButton"),
-    editorForm: document.getElementById("editorForm"),
-    editorTitle: document.getElementById("editorTitle"),
-    enabledInput: document.getElementById("enabledInput"),
-    exportButton: document.getElementById("exportButton"),
-    formError: document.getElementById("formError"),
-    hostInput: document.getElementById("hostInput"),
-    importButton: document.getElementById("importButton"),
-    importInput: document.getElementById("importInput"),
-    importNames: document.getElementById("importNames"),
-    importPreview: document.getElementById("importPreview"),
-    importSummary: document.getElementById("importSummary"),
-    nameInput: document.getElementById("nameInput"),
-    newButton: document.getElementById("newButton"),
-    patternInput: document.getElementById("patternInput"),
-    permissionButton: document.getElementById("permissionButton"),
-    permissionText: document.getElementById("permissionText"),
-    saveStatus: document.getElementById("saveStatus"),
-    searchInput: document.getElementById("searchInput"),
-    styleList: document.getElementById("styleList")
-  };
-
-  let styles = [];
-  let selectedId = "";
-  let draftImportStyles = null;
-  let permissionByStyleId = new Map();
-
-  function clearNode(node) {
-    while (node.firstChild) {
-      node.firstChild.remove();
+  const $ = id => document.getElementById(id);
+  let styles = [], draft = PPS.makeBlankStyle(), dirty = false, busy = false, pendingImport = null;
+  let status = { userScriptsAvailable: false, errors: [], missingPermissions: [] };
+  let permissions = new Map(), permissionVersion = 0;
+  const setStatus = (message, tone = "muted") => { $("saveStatus").textContent = message; $("saveStatus").style.color = `var(--${tone})`; };
+  const report = error => { $("formError").textContent = error.message; setStatus("操作を完了できませんでした。", "danger"); };
+  const guarded = fn => (...args) => Promise.resolve().then(() => fn(...args)).catch(report);
+  const canLeave = () => !dirty || confirm("未保存の変更を破棄しますか？");
+  function markDirty() { dirty = true; $("formError").textContent = ""; setStatus("未保存の変更があります。"); }
+  function activateTab(kind) {
+    for (const name of ["css", "js"]) {
+      const active = name === kind;
+      $(name + "Panel").hidden = !active;
+      $(name + "Tab").setAttribute("aria-selected", String(active));
+      $(name + "Tab").tabIndex = active ? 0 : -1;
     }
   }
-
-  function setFormError(message) {
-    els.formError.textContent = message || "";
+  function formValue() {
+    const matchPatterns = PPS.lines($("patternInput").value);
+    return { ...draft, name: $("nameInput").value.trim(), enabled: $("enabledInput").checked,
+      site: { host: PPS.parseMatchPattern(matchPatterns[0])?.host || "", matchPattern: matchPatterns[0] || "", matchPatterns },
+      excludeMatches: PPS.lines($("excludeInput").value), css: $("cssInput").value, js: $("jsInput").value,
+      cssEnabled: $("cssEnabledInput").checked, jsEnabled: $("jsEnabledInput").checked,
+      runAt: $("runAtInput").value, world: $("worldInput").value, allFrames: $("allFramesInput").checked };
   }
-
-  function setSaveStatus(message, tone) {
-    els.saveStatus.textContent = message || "";
-    if (tone === "warning") {
-      els.saveStatus.style.color = "var(--warning)";
-    } else if (tone === "error") {
-      els.saveStatus.style.color = "var(--danger)";
-    } else if (tone === "success") {
-      els.saveStatus.style.color = "var(--success)";
-    } else {
-      els.saveStatus.style.color = "var(--muted)";
+  function showDraft(style) {
+    draft = structuredClone(style); dirty = false;
+    $("nameInput").value = style.name;
+    $("editorTitle").textContent = style.name;
+    $("enabledInput").checked = style.enabled;
+    $("hostInput").value = style.site.host;
+    $("patternInput").value = PPS.patternsForStyle(style).filter(Boolean).join("\n");
+    $("excludeInput").value = style.excludeMatches.join("\n");
+    $("cssInput").value = style.css; $("jsInput").value = style.js;
+    $("cssEnabledInput").checked = style.cssEnabled; $("jsEnabledInput").checked = style.jsEnabled;
+    $("runAtInput").value = style.runAt; $("worldInput").value = style.world;
+    $("allFramesInput").checked = style.allFrames;
+    $("deleteButton").disabled = !styles.some(s => s.id === style.id);
+    $("formError").textContent = "";
+    activateTab(style.js && !style.css ? "js" : "css");
+    renderList(); renderScriptStatus(); updatePermission().catch(report);
+  }
+  function renderScriptStatus() {
+    const errors = (status.errors || []).filter(e => !e.id || e.id === draft.id);
+    $("jsNotice").classList.toggle("is-success", Boolean(status.userScriptsAvailable && !errors.length));
+    $("jsNotice").textContent = errors.length ? errors.map(e => e.message).join("\n") : status.userScriptsAvailable
+      ? "JavaScriptを実行できます。許可済みの対象URLで、次のページ読み込みから実行します。"
+      : `Chromeで実行許可が必要です。chrome://extensions/ を開き、この拡張の「詳細」→「ユーザースクリプトを許可する」をオンにしてください。その後「実行許可を再確認」を押してください。反映されなければ拡張機能を再読み込みしてください。`;
+  }
+  async function updatePermission() {
+    const version = ++permissionVersion, patterns = PPS.lines($("patternInput").value);
+    if (!patterns.length || patterns.some(p => !PPS.isValidMatchPattern(p))) {
+      $("permissionText").textContent = "有効な対象URLを入力してください。";
+      $("permissionText").className = "is-warning"; $("permissionButton").disabled = true; return;
     }
+    const allowed = await PPS.permissionContains(patterns);
+    if (version !== permissionVersion) return;
+    $("permissionText").textContent = allowed ? "対象サイトへのアクセスは許可済みです。" : "適用には対象サイトへのアクセス許可が必要です。";
+    $("permissionText").className = allowed ? "is-success" : "is-warning";
+    $("permissionButton").disabled = allowed;
   }
-
-  function selectedStyle() {
-    return styles.find((style) => style.id === selectedId) || null;
+  async function refreshPermissions() {
+    permissions = new Map(await Promise.all(styles.map(async s => [s.id, await PPS.permissionContains(PPS.patternsForStyle(s))])));
   }
-
-  function getDraftFromForm() {
-    const existing = selectedStyle();
-    const timestamp = PPS.nowIso();
-    const host = PPS.normalizeHost(els.hostInput.value);
-    const pattern = els.patternInput.value.trim();
-
-    return {
-      id: existing ? existing.id : PPS.makeId(),
-      name: els.nameInput.value.trim(),
-      enabled: els.enabledInput.checked,
-      site: {
-        host,
-        matchPattern: pattern
-      },
-      css: els.cssInput.value,
-      createdAt: existing ? existing.createdAt : timestamp,
-      updatedAt: timestamp
-    };
-  }
-
-  function setFormFromStyle(style) {
-    selectedId = style.id;
-    els.editorTitle.textContent = style.name || "New style";
-    els.nameInput.value = style.name || "";
-    els.enabledInput.checked = Boolean(style.enabled);
-    els.hostInput.value = style.site.host || "";
-    els.patternInput.value = style.site.matchPattern || "";
-    els.cssInput.value = style.css || "";
-    setFormError("");
-    updatePermissionStatus(style);
-    renderStyleList();
-  }
-
-  function setBlankForm() {
-    setFormFromStyle(PPS.makeBlankStyle());
-    selectedId = "";
-    els.deleteButton.disabled = true;
-    setSaveStatus("未保存の新規スタイルです。", "");
-  }
-
-  async function refreshPermissionMap() {
-    const nextMap = new Map();
-
-    for (const style of styles) {
-      if (PPS.isValidMatchPattern(style.site.matchPattern)) {
-        nextMap.set(style.id, await PPS.permissionContains(style.site.matchPattern));
-      } else {
-        nextMap.set(style.id, false);
-      }
+  function renderList() {
+    $("styleList").replaceChildren();
+    const query = $("searchInput").value.toLowerCase();
+    const visible = PPS.sortStyles(styles).filter(s => `${s.name} ${s.site.host} ${PPS.patternsForStyle(s).join(" ")}`.toLowerCase().includes(query));
+    if (!visible.length) {
+      const empty = document.createElement("p"); empty.className = "style-list-empty";
+      empty.textContent = styles.length ? "一致する設定がありません。" : "まだ設定がありません。";
+      $("styleList").append(empty);
     }
-
-    permissionByStyleId = nextMap;
-  }
-
-  async function updatePermissionStatus(style) {
-    els.permissionText.classList.remove("is-warning", "is-success");
-
-    if (!style || !PPS.isValidMatchPattern(style.site.matchPattern)) {
-      els.permissionText.textContent = "有効なmatch patternを入力してください。";
-      els.permissionText.classList.add("is-warning");
-      els.permissionButton.disabled = true;
-      return;
-    }
-
-    const permitted = await PPS.permissionContains(style.site.matchPattern);
-    if (permitted) {
-      els.permissionText.textContent = "このサイトの権限は許可済みです。";
-      els.permissionText.classList.add("is-success");
-      els.permissionButton.disabled = true;
-      return;
-    }
-
-    els.permissionText.textContent = "権限が必要です。保存後も、許可するまでページには適用されません。";
-    els.permissionText.classList.add("is-warning");
-    els.permissionButton.disabled = false;
-  }
-
-  function styleMatchesSearch(style, query) {
-    if (!query) {
-      return true;
-    }
-
-    const haystack = `${style.name} ${style.site.host} ${style.site.matchPattern}`.toLowerCase();
-    return haystack.includes(query.toLowerCase());
-  }
-
-  function renderStyleList() {
-    clearNode(els.styleList);
-
-    const query = els.searchInput.value.trim();
-    const visibleStyles = PPS.sortStyles(styles).filter((style) => styleMatchesSearch(style, query));
-
-    if (visibleStyles.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "style-list-empty";
-      empty.textContent = styles.length === 0 ? "まだスタイルがありません。" : "一致するスタイルがありません。";
-      els.styleList.append(empty);
-      return;
-    }
-
-    for (const style of visibleStyles) {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "style-item";
-      if (style.id === selectedId) {
-        item.classList.add("is-selected");
-      }
-
-      const main = document.createElement("span");
-      main.className = "style-item-main";
-
-      const title = document.createElement("span");
-      title.className = "style-item-title";
-      title.textContent = style.name;
-
-      const host = document.createElement("span");
-      host.className = "style-item-host";
-      host.textContent = style.site.host;
-
+    for (const style of visible) {
+      const button = document.createElement("button"); button.type = "button";
+      button.className = "style-item" + (style.id === draft.id ? " is-selected" : "");
+      const main = document.createElement("span"); main.className = "style-item-main";
+      const title = document.createElement("span"); title.className = "style-item-title"; title.textContent = style.name;
+      const host = document.createElement("span"); host.className = "style-item-host"; host.textContent = `${PPS.codeLabel(style)} · ${style.site.host}`;
       main.append(title, host);
-
-      const status = document.createElement("span");
-      status.className = "status-pill";
-
-      if (!style.enabled) {
-        status.textContent = "停止中";
-      } else if (permissionByStyleId.get(style.id)) {
-        status.classList.add("is-on");
-        status.textContent = "有効";
-      } else {
-        status.classList.add("is-warning");
-        status.textContent = "権限必要";
-      }
-
-      item.append(main, status);
-      item.addEventListener("click", () => {
-        els.deleteButton.disabled = false;
-        setSaveStatus("");
-        setFormFromStyle(style);
-      });
-
-      els.styleList.append(item);
+      const pill = document.createElement("span"); pill.className = "status-pill";
+      if (!style.enabled) pill.textContent = "停止中";
+      else if (!permissions.get(style.id)) { pill.textContent = "権限必要"; pill.classList.add("is-warning"); }
+      else if (status.errors?.some(e => !e.id || e.id === style.id)) { pill.textContent = "登録エラー"; pill.classList.add("is-warning"); }
+      else if (style.jsEnabled && style.js.trim() && !status.userScriptsAvailable) { pill.textContent = "JS許可待ち"; pill.classList.add("is-warning"); }
+      else { pill.textContent = "有効"; pill.classList.add("is-on"); }
+      button.append(main, pill);
+      button.addEventListener("click", () => { if (!busy && canLeave()) { showDraft(style); setStatus(""); } });
+      $("styleList").append(button);
     }
   }
-
-  function buildPatternFromHostInput() {
-    const raw = els.hostInput.value.trim();
-    if (!raw) {
-      setFormError("URLまたはhostを入力してください。");
-      return;
-    }
-
-    let scheme = "https";
-    if (/^http:\/\//i.test(raw)) {
-      scheme = "http";
-    }
-
-    const host = PPS.normalizeHost(raw);
-    if (!host) {
-      setFormError("hostを判定できませんでした。");
-      return;
-    }
-
-    els.hostInput.value = host;
-    els.patternInput.value = PPS.makeMatchPatternFromHost(host, scheme);
-    setFormError("");
-    updatePermissionStatus(getDraftFromForm());
+  function buildPattern() {
+    const raw = $("hostInput").value.trim();
+    if (!PPS.normalizeHost(raw)) throw new Error("URLまたはホスト名を入力してください。");
+    $("patternInput").value = PPS.makeMatchPatternFromHost(raw, raw.startsWith("http://") ? "http" : "https");
+    markDirty(); updatePermission().catch(report);
   }
-
-  async function requestPermissionForDraft() {
-    const draft = getDraftFromForm();
-    const validation = PPS.validateStyle({
-      ...draft,
-      name: draft.name || "New style"
-    });
-
-    if (!validation.ok) {
-      setFormError(validation.reason);
-      return false;
-    }
-
-    const granted = await PPS.permissionRequest(draft.site.matchPattern);
-    await updatePermissionStatus(draft);
-    await refreshPermissionMap();
-    renderStyleList();
-
-    if (!granted) {
-      setSaveStatus("権限は許可されませんでした。", "warning");
-    }
-
-    return granted;
-  }
-
-  async function saveDraft() {
-    const draft = getDraftFromForm();
-    const validation = PPS.validateStyle(draft);
-
-    if (!validation.ok) {
-      setFormError(validation.reason);
-      setSaveStatus("保存できませんでした。", "error");
-      return;
-    }
-
-    if (draft.enabled) {
-      await PPS.permissionRequest(draft.site.matchPattern);
-    }
-
-    const existingIndex = styles.findIndex((style) => style.id === draft.id);
-    if (existingIndex >= 0) {
-      styles = styles.map((style) => style.id === draft.id ? draft : style);
-    } else {
-      styles = [...styles, draft];
-    }
-
-    await PPS.setStyles(styles);
-    selectedId = draft.id;
-    els.deleteButton.disabled = false;
-    await refreshPermissionMap();
-    renderStyleList();
-    setFormFromStyle(draft);
-
-    const hasPermission = await PPS.permissionContains(draft.site.matchPattern);
-    setSaveStatus(
-      hasPermission ? "保存しました。" : "保存しました。適用には権限が必要です。",
-      hasPermission ? "success" : "warning"
-    );
-  }
-
-  async function deleteSelectedStyle() {
-    const style = selectedStyle();
-    if (!style) {
-      return;
-    }
-
-    const ok = confirm(`「${style.name}」を削除しますか？`);
-    if (!ok) {
-      return;
-    }
-
-    styles = styles.filter((item) => item.id !== style.id);
-    await PPS.setStyles(styles);
-    await refreshPermissionMap();
-
-    if (styles.length > 0) {
-      setFormFromStyle(PPS.sortStyles(styles)[0]);
-    } else {
-      setBlankForm();
-    }
-
-    renderStyleList();
-    setSaveStatus("削除しました。", "success");
-  }
-
-  async function exportSettings() {
-    const payload = PPS.buildExportPayload(styles);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const filenameDate = new Date().toISOString().slice(0, 10);
-
-    chrome.downloads.download({
-      url,
-      filename: `personal-page-styler-${filenameDate}.json`,
-      saveAs: true
-    }, () => {
-      URL.revokeObjectURL(url);
-    });
-  }
-
-  function hideImportPreview() {
-    els.importPreview.hidden = true;
-    draftImportStyles = null;
-  }
-
-  function showImportPreview(importStyles) {
-    draftImportStyles = importStyles;
-    clearNode(els.importNames);
-
-    els.importSummary.textContent = `${importStyles.length}件のスタイルで現在の設定をすべて置き換えます。`;
-
-    for (const style of importStyles.slice(0, 25)) {
-      const item = document.createElement("li");
-      item.textContent = `${style.name} - ${style.site.host}`;
-      els.importNames.append(item);
-    }
-
-    if (importStyles.length > 25) {
-      const item = document.createElement("li");
-      item.textContent = `ほか ${importStyles.length - 25} 件`;
-      els.importNames.append(item);
-    }
-
-    els.importPreview.hidden = false;
-  }
-
-  async function handleImportFile(file) {
-    if (!file) {
-      return;
-    }
-
+  async function save() {
+    if (busy) return;
+    const style = formValue(), validation = PPS.validateStyle(style);
+    if (!validation.ok) throw new Error(validation.reason);
+    busy = true; $("saveButton").disabled = true;
     try {
+      // Request before yielding to other work, while the Save gesture is active.
+      if (style.enabled) await PPS.permissionRequest(PPS.patternsForStyle(style));
+      const existing = styles.find(s => s.id === style.id);
+      const response = await PPS.mutate("save", { style, expectedUpdatedAt: existing?.updatedAt });
+      styles = response.styles; status = response;
+      await refreshPermissions(); showDraft(styles.find(s => s.id === style.id));
+      const problem = status.errors?.find(e => !e.id || e.id === style.id);
+      if (problem) { $("formError").textContent = problem.message; setStatus("保存済みですが、実行登録に失敗しました。", "warning"); }
+      else if (!permissions.get(style.id)) setStatus("保存しました。適用にはサイトの権限が必要です。", "warning");
+      else if (style.js.trim() && style.jsEnabled && !status.userScriptsAvailable) setStatus("保存しました。ChromeでJavaScriptの実行許可が必要です。", "warning");
+      else setStatus(style.js.trim() ? "保存しました。JavaScriptの反映には対象ページを再読み込みしてください。" : "保存しました。CSSを反映しました。", "success");
+    } finally { busy = false; $("saveButton").disabled = false; }
+  }
+  async function remove() {
+    if (busy || !confirm(`「${draft.name}」を削除しますか？`)) return;
+    const response = await PPS.mutate("delete", { id: draft.id });
+    styles = response.styles; status = response;
+    await refreshPermissions(); showDraft(PPS.sortStyles(styles)[0] || PPS.makeBlankStyle());
+    setStatus("削除しました。実行済みのJavaScriptによる変更はページ再読み込みまで残ります。", "success");
+  }
+  async function exportSettings() {
+    const data = await PPS.getStyles();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(PPS.buildExportPayload(data), null, 2)], { type: "application/json" }));
+    try { await chrome.downloads.download({ url, filename: `personal-page-styler-${new Date().toISOString().slice(0, 10)}.json`, saveAs: true }); }
+    finally { setTimeout(() => URL.revokeObjectURL(url), 30000); }
+  }
+  function hideImport() { $("importPreview").hidden = true; pendingImport = null; $("importButton").focus(); }
+  async function importFile(file) {
+    if (!file || busy) return;
+    try {
+      if (!canLeave()) return;
       const text = await file.text();
-      const payload = JSON.parse(text);
-      const validation = PPS.validateExportPayload(payload);
-
-      if (!validation.ok) {
-        setSaveStatus(validation.reason, "error");
+      if (file.name.toLowerCase().endsWith(".js")) {
+        const result = PPS.parseUserScript(text);
+        if (!result.ok) throw new Error(result.reason);
+        showDraft(result.style); dirty = true;
+        setStatus("スクリプトを下書きに読み込みました。内容を確認し、有効にして保存してください。");
         return;
       }
-
-      showImportPreview(validation.styles);
-    } catch (_error) {
-      setSaveStatus("JSONを読み込めませんでした。既存設定は変更していません。", "error");
-    } finally {
-      els.importInput.value = "";
-    }
+      const result = PPS.validateExportPayload(JSON.parse(text));
+      if (!result.ok) throw new Error(result.reason);
+      pendingImport = result.styles;
+      $("importSummary").textContent = `${styles.length}件の設定を、ファイル内の${result.styles.length}件で置き換えます。有効なJavaScriptは対象ページの次回読み込みから実行されます。`;
+      $("importNames").replaceChildren(...result.styles.slice(0, 30).map(s => { const li = document.createElement("li"); li.textContent = `${s.name} — ${PPS.codeLabel(s)} — ${s.enabled ? "有効" : "停止中"}`; return li; }));
+      $("importPreview").hidden = false; $("cancelImportButton").focus();
+    } finally { $("importInput").value = ""; }
   }
-
   async function confirmImport() {
-    if (!draftImportStyles) {
-      return;
-    }
-
-    styles = draftImportStyles;
-    await PPS.setStyles(styles);
-    await refreshPermissionMap();
-    hideImportPreview();
-
-    if (styles.length > 0) {
-      setFormFromStyle(PPS.sortStyles(styles)[0]);
-    } else {
-      setBlankForm();
-    }
-
-    renderStyleList();
-    setSaveStatus("Importしました。必要なサイトは権限を許可してください。", "success");
+    if (!pendingImport || busy) return;
+    busy = true; $("confirmImportButton").disabled = true;
+    try {
+      const response = await PPS.mutate("replace", { payload: PPS.buildExportPayload(pendingImport) });
+      styles = response.styles; status = response; hideImport();
+      await refreshPermissions(); showDraft(PPS.sortStyles(styles)[0] || PPS.makeBlankStyle());
+      setStatus("Importしました。必要なサイトの権限を許可してください。", "success");
+    } finally { busy = false; $("confirmImportButton").disabled = false; }
   }
-
-  function createStyleFromQuery() {
-    const params = new URLSearchParams(location.search);
-    const sourceUrl = params.get("sourceUrl");
-
-    if (sourceUrl && PPS.isHttpUrl(sourceUrl)) {
-      const style = PPS.makeStyleFromUrl(sourceUrl);
-      setFormFromStyle(style);
-      selectedId = "";
-      els.deleteButton.disabled = true;
-      setSaveStatus("現在サイト用の未保存スタイルです。", "");
-      return true;
-    }
-
-    return false;
+  $("editorForm").addEventListener("input", markDirty);
+  $("nameInput").addEventListener("input", () => { $("editorTitle").textContent = $("nameInput").value || "新しい設定"; });
+  $("patternInput").addEventListener("input", guarded(updatePermission));
+  $("buildPatternButton").addEventListener("click", guarded(buildPattern));
+  $("permissionButton").addEventListener("click", () => {
+    PPS.permissionRequest(PPS.lines($("patternInput").value)).then(async granted => {
+      status = await PPS.sync(); await refreshPermissions(); await updatePermission(); renderList(); renderScriptStatus();
+      if (!granted) setStatus("権限は許可されませんでした。", "warning");
+    }).catch(report);
+  });
+  $("editorForm").addEventListener("submit", event => { event.preventDefault(); save().catch(report); });
+  $("deleteButton").addEventListener("click", guarded(remove));
+  $("exportButton").addEventListener("click", guarded(exportSettings));
+  $("newButton").addEventListener("click", () => { if (!busy && canLeave()) { showDraft(PPS.makeBlankStyle()); setStatus("未保存の新しい設定です。"); } });
+  $("searchInput").addEventListener("input", renderList);
+  $("importButton").addEventListener("click", () => { if (!busy) $("importInput").click(); });
+  $("importInput").addEventListener("change", guarded(() => importFile($("importInput").files[0])));
+  for (const id of ["cancelImportButton", "closeImportButton"]) $(id).addEventListener("click", hideImport);
+  $("confirmImportButton").addEventListener("click", guarded(confirmImport));
+  $("checkScriptsButton").addEventListener("click", guarded(async () => { status = await PPS.sync(); renderScriptStatus(); renderList(); }));
+  for (const name of ["css", "js"]) {
+    $(name + "Tab").addEventListener("click", () => activateTab(name));
+    $(name + "Tab").addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); const next = event.key === "Home" ? "css" : event.key === "End" ? "js" : name === "css" ? "js" : "css";
+      activateTab(next); $(next + "Tab").focus();
+    });
   }
-
-  async function load() {
-    styles = await PPS.getStyles();
-    await refreshPermissionMap();
-
-    if (!createStyleFromQuery()) {
-      if (styles.length > 0) {
-        setFormFromStyle(PPS.sortStyles(styles)[0]);
-        els.deleteButton.disabled = false;
-      } else {
-        setBlankForm();
+  for (const id of ["cssInput", "jsInput"]) $(id).addEventListener("keydown", event => {
+    if (event.key !== "Tab" || event.shiftKey) return;
+    event.preventDefault(); const editor = event.target;
+    editor.setRangeText("  ", editor.selectionStart, editor.selectionEnd, "end"); markDirty();
+  });
+  document.addEventListener("keydown", event => {
+    if (!$("importPreview").hidden) {
+      if (event.key === "Escape") { event.preventDefault(); hideImport(); }
+      if (event.key === "Tab") {
+        const buttons = [...$("importPreview").querySelectorAll("button:not(:disabled)")];
+        const index = buttons.indexOf(document.activeElement);
+        if ((event.shiftKey && index <= 0) || (!event.shiftKey && index === buttons.length - 1)) { event.preventDefault(); buttons[event.shiftKey ? buttons.length - 1 : 0].focus(); }
       }
-    }
-
-    renderStyleList();
-  }
-
-  function handleSaveShortcut(event) {
-    const isSaveShortcut =
-      event.key.toLowerCase() === "s" &&
-      (event.ctrlKey || event.metaKey) &&
-      !event.altKey &&
-      !event.shiftKey;
-
-    if (!isSaveShortcut) {
       return;
     }
-
-    event.preventDefault();
-
-    if (event.repeat || !els.importPreview.hidden) {
-      return;
-    }
-
-    saveDraft();
-  }
-
-  els.buildPatternButton.addEventListener("click", buildPatternFromHostInput);
-
-  els.cssInput.addEventListener("input", () => {
-    setSaveStatus("未保存の変更があります。", "");
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); if (!event.repeat) save().catch(report); }
   });
-
-  els.deleteButton.addEventListener("click", deleteSelectedStyle);
-
-  els.editorForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveDraft();
-  });
-
-  els.exportButton.addEventListener("click", exportSettings);
-
-  els.hostInput.addEventListener("change", buildPatternFromHostInput);
-
-  els.importButton.addEventListener("click", () => {
-    els.importInput.click();
-  });
-
-  els.importInput.addEventListener("change", () => {
-    handleImportFile(els.importInput.files[0]);
-  });
-
-  els.nameInput.addEventListener("input", () => {
-    els.editorTitle.textContent = els.nameInput.value.trim() || "New style";
-    setSaveStatus("未保存の変更があります。", "");
-  });
-
-  els.newButton.addEventListener("click", () => {
-    setBlankForm();
-  });
-
-  els.patternInput.addEventListener("input", () => {
-    updatePermissionStatus(getDraftFromForm());
-    setSaveStatus("未保存の変更があります。", "");
-  });
-
-  els.permissionButton.addEventListener("click", requestPermissionForDraft);
-
-  els.searchInput.addEventListener("input", renderStyleList);
-
-  els.cancelImportButton.addEventListener("click", hideImportPreview);
-  els.closeImportButton.addEventListener("click", hideImportPreview);
-  els.confirmImportButton.addEventListener("click", confirmImport);
-
-  document.addEventListener("keydown", handleSaveShortcut);
-
-  load();
+  addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
+  guarded(async () => {
+    styles = await PPS.getStyles(); status = await PPS.sync(); await refreshPermissions();
+    const params = new URLSearchParams(location.search), source = params.get("sourceUrl");
+    showDraft(source && PPS.isHttpUrl(source) ? PPS.makeStyleFromUrl(source) : styles.find(s => s.id === params.get("id")) || PPS.sortStyles(styles)[0] || PPS.makeBlankStyle());
+    document.documentElement.dataset.ready = "true";
+  })();
 })();

@@ -1,386 +1,178 @@
 (function (global) {
   "use strict";
-
   const APP_ID = "personal-page-styler";
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
+  // Keep the v1 key so an in-place upgrade retains existing CSS.
   const STORAGE_KEY = "personalPageStyler.styles";
   const CONTENT_STYLE_ID = "personal-page-styler-style";
   const CONTENT_SCRIPT_PREFIX = "personal-page-styler:";
+  const USER_SCRIPT_PREFIX = "pps-js:";
   const MESSAGE_REFRESH = "personal-page-styler:refresh";
   const MESSAGE_SYNC = "personal-page-styler:sync";
-
-  function nowIso() {
-    return new Date().toISOString();
-  }
-
-  function makeId() {
-    if (global.crypto && typeof global.crypto.randomUUID === "function") {
-      return global.crypto.randomUUID();
-    }
-
-    return [
-      Date.now().toString(36),
-      Math.random().toString(36).slice(2, 10)
-    ].join("-");
-  }
-
-  function escapeRegExp(value) {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
+  const MESSAGE_CSS = "personal-page-styler:css";
+  const MESSAGE_MUTATE = "personal-page-styler:mutate";
+  const nowIso = () => new Date().toISOString();
+  const makeId = () => global.crypto.randomUUID();
+  const lines = (text) => [...new Set(String(text || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean))];
 
   function normalizeHost(input) {
     const raw = String(input || "").trim();
-    if (!raw) {
-      return "";
-    }
-
-    try {
-      const asUrl = raw.includes("://") ? new URL(raw) : new URL(`https://${raw}`);
-      return asUrl.hostname.toLowerCase();
-    } catch (_error) {
-      return raw
-        .replace(/^https?:\/\//i, "")
-        .replace(/\/.*$/, "")
-        .replace(/:\d+$/, "")
-        .toLowerCase();
-    }
+    try { return new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.toLowerCase(); }
+    catch { return ""; }
   }
-
   function isHttpUrl(url) {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch (_error) {
-      return false;
-    }
+    try { return ["http:", "https:"].includes(new URL(url).protocol); }
+    catch { return false; }
   }
-
-  function getHostFromUrl(url) {
-    if (!isHttpUrl(url)) {
-      return "";
-    }
-
-    return new URL(url).hostname.toLowerCase();
-  }
-
-  function makeMatchPatternFromUrl(url) {
-    const parsed = new URL(url);
-    const scheme = parsed.protocol === "http:" ? "http" : "https";
-    return `${scheme}://${parsed.hostname.toLowerCase()}/*`;
-  }
-
-  function makeMatchPatternFromHost(host, scheme) {
-    const normalizedHost = normalizeHost(host);
-    const normalizedScheme = scheme === "http" ? "http" : "https";
-    return `${normalizedScheme}://${normalizedHost}/*`;
-  }
-
+  const getHostFromUrl = url => isHttpUrl(url) ? new URL(url).hostname.toLowerCase() : "";
   function parseMatchPattern(pattern) {
-    const match = String(pattern || "").trim().match(/^(\*|http|https):\/\/([^/]+)(\/.*)$/);
-    if (!match) {
-      return null;
+    const match = String(pattern || "").match(/^(\*|http|https):\/\/([^/]+)(\/[^\s#]*)$/);
+    if (!match) return null;
+    const [, scheme, rawHost, path] = match;
+    const host = rawHost.toLowerCase();
+    const bare = host.startsWith("*.") ? host.slice(2) : host;
+    if (host !== "*") {
+      if (!bare || /[\s*:@?#\\]/.test(bare)) return null;
+      try { if (new URL(`https://${bare}`).hostname !== bare) return null; }
+      catch { return null; }
     }
-
-    const scheme = match[1];
-    const host = match[2].toLowerCase();
-    const path = match[3] || "/*";
-
-    if (!["*", "http", "https"].includes(scheme)) {
-      return null;
-    }
-
-    if (!host || host.includes(":") || host.includes(" ")) {
-      return null;
-    }
-
-    if (!path.startsWith("/")) {
-      return null;
-    }
-
     return { scheme, host, path };
   }
-
-  function isValidMatchPattern(pattern) {
-    return parseMatchPattern(pattern) !== null;
+  const isValidMatchPattern = pattern => Boolean(parseMatchPattern(pattern));
+  function makeMatchPatternFromUrl(url) {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.hostname.toLowerCase()}/*`;
   }
-
-  function hostMatchesPattern(patternHost, actualHost) {
-    const host = actualHost.toLowerCase();
-    if (patternHost === "*") {
-      return true;
-    }
-
-    if (patternHost.startsWith("*.")) {
-      const suffix = patternHost.slice(2);
-      return host === suffix || host.endsWith(`.${suffix}`);
-    }
-
-    return patternHost === host;
+  const makeMatchPatternFromHost = (host, scheme) => `${scheme === "http" ? "http" : "https"}://${normalizeHost(host)}/*`;
+  function originPattern(pattern) {
+    const p = parseMatchPattern(pattern);
+    if (!p) throw new Error(`対象URLの書式が正しくありません: ${pattern}`);
+    return `${p.scheme}://${p.host}/*`;
   }
-
-  function pathMatchesPattern(patternPath, actualPath) {
-    const regex = new RegExp(`^${patternPath.split("*").map(escapeRegExp).join(".*")}$`);
-    return regex.test(actualPath);
-  }
-
   function matchPatternForUrl(pattern, url) {
-    const parsedPattern = parseMatchPattern(pattern);
-    if (!parsedPattern || !isHttpUrl(url)) {
-      return false;
-    }
-
-    const parsedUrl = new URL(url);
-    const scheme = parsedUrl.protocol.replace(":", "");
-    const path = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
-
-    if (parsedPattern.scheme !== "*" && parsedPattern.scheme !== scheme) {
-      return false;
-    }
-
-    return (
-      hostMatchesPattern(parsedPattern.host, parsedUrl.hostname) &&
-      pathMatchesPattern(parsedPattern.path, path)
-    );
+    const p = parseMatchPattern(pattern);
+    if (!p || !isHttpUrl(url)) return false;
+    const u = new URL(url);
+    if (p.scheme !== "*" && `${p.scheme}:` !== u.protocol) return false;
+    const host = u.hostname.toLowerCase();
+    if (p.host !== "*" && p.host !== host && !(p.host.startsWith("*.") && (host === p.host.slice(2) || host.endsWith(p.host.slice(1))))) return false;
+    // Chrome match patterns include the query, but not the URL fragment.
+    const escaped = p.path.split("*").map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+    return new RegExp(`^${escaped}$`).test(u.pathname + u.search);
   }
-
-  function styleMatchesUrl(style, url) {
-    return Boolean(
-      style &&
-      style.enabled &&
-      style.site &&
-      matchPatternForUrl(style.site.matchPattern, url)
-    );
+  const patternsForStyle = style => style.site.matchPatterns || [style.site.matchPattern];
+  function matchesStyle(style, url) {
+    return patternsForStyle(style).some(p => matchPatternForUrl(p, url)) &&
+      !(style.excludeMatches || []).some(p => matchPatternForUrl(p, url));
   }
-
-  function makeStyleFromUrl(url) {
-    const host = getHostFromUrl(url);
-    const matchPattern = makeMatchPatternFromUrl(url);
-    const timestamp = nowIso();
-
-    return {
-      id: makeId(),
-      name: host || "New style",
-      enabled: true,
-      site: {
-        host,
-        matchPattern
-      },
-      css: "",
-      createdAt: timestamp,
-      updatedAt: timestamp
-    };
-  }
-
-  function makeBlankStyle() {
-    const timestamp = nowIso();
-
-    return {
-      id: makeId(),
-      name: "New style",
-      enabled: true,
-      site: {
-        host: "",
-        matchPattern: ""
-      },
-      css: "",
-      createdAt: timestamp,
-      updatedAt: timestamp
-    };
-  }
-
-  function validateStyle(style) {
-    if (!style || typeof style !== "object") {
-      return { ok: false, reason: "Style must be an object." };
-    }
-
-    if (typeof style.id !== "string" || !style.id.trim()) {
-      return { ok: false, reason: "Style id is required." };
-    }
-
-    if (typeof style.name !== "string" || !style.name.trim()) {
-      return { ok: false, reason: "Style name is required." };
-    }
-
-    if (typeof style.enabled !== "boolean") {
-      return { ok: false, reason: "Style enabled must be boolean." };
-    }
-
-    if (!style.site || typeof style.site !== "object") {
-      return { ok: false, reason: "Style site is required." };
-    }
-
-    const host = normalizeHost(style.site.host);
-    if (!host) {
-      return { ok: false, reason: "Site host is required." };
-    }
-
-    if (!isValidMatchPattern(style.site.matchPattern)) {
-      return { ok: false, reason: "Match pattern must be an http(s) Chrome match pattern." };
-    }
-
-    if (typeof style.css !== "string") {
-      return { ok: false, reason: "CSS must be a string." };
-    }
-
-    return { ok: true };
-  }
-
+  const styleMatchesUrl = (style, url) => Boolean(style && style.enabled && matchesStyle(style, url));
   function normalizeStyle(style) {
     const timestamp = nowIso();
+    const patterns = Array.isArray(style.site?.matchPatterns) ? [...new Set(style.site.matchPatterns)] : [style.site?.matchPattern || ""];
     return {
-      id: String(style.id || makeId()),
-      name: String(style.name || "New style").trim(),
-      enabled: Boolean(style.enabled),
-      site: {
-        host: normalizeHost(style.site && style.site.host),
-        matchPattern: String(style.site && style.site.matchPattern || "").trim()
-      },
-      css: String(style.css || ""),
-      createdAt: String(style.createdAt || timestamp),
-      updatedAt: String(style.updatedAt || timestamp)
+      id: style.id || makeId(), name: (style.name || "新しい設定").trim(), enabled: style.enabled !== false,
+      site: { host: style.site?.host || parseMatchPattern(patterns[0])?.host || "", matchPattern: patterns[0] || "", matchPatterns: patterns },
+      excludeMatches: style.excludeMatches || [],
+      css: style.css || "", cssEnabled: style.cssEnabled !== false,
+      js: style.js || "", jsEnabled: style.jsEnabled !== false,
+      runAt: style.runAt || "document_idle", world: style.world || "USER_SCRIPT", allFrames: style.allFrames === true,
+      createdAt: style.createdAt || timestamp, updatedAt: style.updatedAt || timestamp
     };
   }
-
-  function sortStyles(styles) {
-    return [...styles].sort((a, b) => {
-      const hostCompare = a.site.host.localeCompare(b.site.host);
-      if (hostCompare !== 0) {
-        return hostCompare;
-      }
-
-      return a.name.localeCompare(b.name);
-    });
+  function makeBlankStyle() { return normalizeStyle({ id: makeId(), name: "新しい設定", site: { matchPattern: "" } }); }
+  function makeStyleFromUrl(url) {
+    return normalizeStyle({ id: makeId(), name: getHostFromUrl(url), site: { host: getHostFromUrl(url), matchPattern: makeMatchPatternFromUrl(url) } });
   }
-
+  function validateStyle(style) {
+    const fail = reason => ({ ok: false, reason });
+    if (!style || typeof style !== "object" || Array.isArray(style)) return fail("設定の形式が正しくありません。");
+    if (typeof style.id !== "string" || !style.id.trim() || style.id.length > 160) return fail("設定IDが正しくありません。");
+    if (typeof style.name !== "string" || !style.name.trim()) return fail("名前を入力してください。");
+    if (typeof style.enabled !== "boolean") return fail("有効／無効の値が正しくありません。");
+    if (!style.site || typeof style.site !== "object") return fail("対象URLを入力してください。");
+    const patterns = patternsForStyle(style);
+    if (!Array.isArray(patterns) || !patterns.length || patterns.some(p => typeof p !== "string" || !isValidMatchPattern(p))) return fail("対象URLをChromeのmatch patternで入力してください。例: https://example.com/*");
+    if (style.excludeMatches !== undefined && (!Array.isArray(style.excludeMatches) || style.excludeMatches.some(p => typeof p !== "string" || !isValidMatchPattern(p)))) return fail("除外URLの書式が正しくありません。");
+    if (typeof style.css !== "string" || (style.js !== undefined && typeof style.js !== "string")) return fail("CSSとJavaScriptは文字列で指定してください。");
+    for (const key of ["cssEnabled", "jsEnabled", "allFrames"]) if (style[key] !== undefined && typeof style[key] !== "boolean") return fail(`${key} の値が正しくありません。`);
+    if (style.runAt !== undefined && !["document_start", "document_end", "document_idle"].includes(style.runAt)) return fail("実行タイミングが正しくありません。");
+    if (style.world !== undefined && !["USER_SCRIPT", "MAIN"].includes(style.world)) return fail("実行環境が正しくありません。");
+    if (style.site.host !== undefined && typeof style.site.host !== "string") return fail("サイト名が正しくありません。");
+    return { ok: true };
+  }
+  const sortStyles = styles => [...styles].sort((a, b) => a.site.host.localeCompare(b.site.host) || a.name.localeCompare(b.name));
   function validateExportPayload(payload) {
-    if (!payload || typeof payload !== "object") {
-      return { ok: false, reason: "Import file must contain a JSON object." };
+    if (!payload || payload.app !== APP_ID || ![1, 2].includes(payload.schemaVersion) || !Array.isArray(payload.styles)) return { ok: false, reason: "Personal Page Tweakerのv1/v2バックアップではありません。" };
+    const seen = new Set(), styles = [];
+    for (const raw of payload.styles) {
+      const result = validateStyle(raw);
+      if (!result.ok) return result;
+      const style = normalizeStyle(raw);
+      if (seen.has(style.id)) style.id = makeId();
+      seen.add(style.id);
+      styles.push(style);
     }
-
-    if (payload.app !== APP_ID || payload.schemaVersion !== SCHEMA_VERSION) {
-      return { ok: false, reason: "Import file is not a Personal Page Tweaker v1 export." };
-    }
-
-    if (!Array.isArray(payload.styles)) {
-      return { ok: false, reason: "Import file is missing styles." };
-    }
-
-    const seenIds = new Set();
-    const styles = [];
-
-    for (const rawStyle of payload.styles) {
-      const normalized = normalizeStyle(rawStyle);
-      const validation = validateStyle(normalized);
-      if (!validation.ok) {
-        return { ok: false, reason: validation.reason };
-      }
-
-      if (seenIds.has(normalized.id)) {
-        normalized.id = makeId();
-      }
-
-      seenIds.add(normalized.id);
-      styles.push(normalized);
-    }
-
     return { ok: true, styles };
   }
-
-  function buildExportPayload(styles) {
-    return {
-      app: APP_ID,
-      schemaVersion: SCHEMA_VERSION,
-      exportedAt: nowIso(),
-      styles: styles.map(normalizeStyle)
-    };
-  }
-
-  function chromeLastError() {
-    return global.chrome && chrome.runtime && chrome.runtime.lastError;
-  }
-
-  function getStyles() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get({ [STORAGE_KEY]: [] }, (result) => {
-        if (chromeLastError()) {
-          resolve([]);
-          return;
-        }
-
-        const styles = Array.isArray(result[STORAGE_KEY]) ? result[STORAGE_KEY] : [];
-        resolve(styles.map(normalizeStyle));
-      });
+  const buildExportPayload = styles => ({ app: APP_ID, schemaVersion: SCHEMA_VERSION, exportedAt: nowIso(), styles: styles.map(normalizeStyle) });
+  async function getStyles() {
+    const result = await chrome.storage.local.get({ [STORAGE_KEY]: [] });
+    if (!Array.isArray(result[STORAGE_KEY])) throw new Error("保存データを読み込めません。既存データは保持しています。");
+    return result[STORAGE_KEY].map(style => {
+      const result = validateStyle(style);
+      if (!result.ok) throw new Error(`保存データ: ${result.reason}`);
+      return normalizeStyle(style);
     });
   }
+  function setStyles(styles) { return chrome.storage.local.set({ [STORAGE_KEY]: styles.map(normalizeStyle) }); }
+  function permissionOrigins(patterns) { return [...new Set((Array.isArray(patterns) ? patterns : [patterns]).map(originPattern))]; }
+  async function permissionContains(patterns) {
+    try { return await chrome.permissions.contains({ origins: permissionOrigins(patterns) }); }
+    catch { return false; }
+  }
+  async function permissionRequest(patterns) { return chrome.permissions.request({ origins: permissionOrigins(patterns) }); }
+  async function request(message) {
+    const response = await chrome.runtime.sendMessage(message);
+    if (!response?.ok) throw new Error(response?.error || "拡張機能に接続できません。拡張機能を再読み込みしてください。");
+    return response;
+  }
+  const sync = () => request({ type: MESSAGE_SYNC });
+  const mutate = (operation, data) => request({ type: MESSAGE_MUTATE, operation, ...data });
+  const codeLabel = style => [style.css.trim() ? "CSS" : "", style.js.trim() ? "JS" : ""].filter(Boolean).join(" + ") || "空";
 
-  function setStyles(styles) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set({ [STORAGE_KEY]: styles.map(normalizeStyle) }, () => {
-        const error = chromeLastError();
-        if (error) {
-          reject(new Error(error.message));
-          return;
-        }
-
-        resolve();
-      });
-    });
+  function parseUserScript(source) {
+    const block = source.match(/^[ \t]*\/\/\s*==UserScript==\s*\r?\n([\s\S]*?)^[ \t]*\/\/\s*==\/UserScript==/m);
+    if (!block) return { ok: false, reason: "UserScriptヘッダーがありません。通常のJavaScriptは編集欄に貼り付けてください。" };
+    const metadata = Object.create(null);
+    for (const line of block[1].split(/\r?\n/)) {
+      const match = line.match(/^\s*\/\/\s*@([\w-]+)(?:\s+(.*))?$/);
+      if (match) (metadata[match[1]] ||= []).push((match[2] || "").trim());
+    }
+    const unsupported = ["require", "resource", "include", "exclude", "connect", "inject-into", "sandbox", "unwrap", "top-level-await"].filter(k => metadata[k]);
+    const grants = (metadata.grant || []).filter(g => !["none", "GM_addStyle", "GM.addStyle"].includes(g));
+    if (unsupported.length || grants.length) return { ok: false, reason: `この版では未対応です: ${[...unsupported.map(k => "@" + k), ...grants].join(", ")}。内容を対応するJavaScriptに直して貼り付けてください。` };
+    const matches = metadata.match || [];
+    if (!matches.length) return { ok: false, reason: "@matchが必要です。" };
+    const runAt = (metadata["run-at"]?.[0] || "document-idle").replaceAll("-", "_");
+    const style = normalizeStyle({ id: makeId(), name: metadata.name?.[0] || "インポートしたスクリプト", enabled: false,
+      site: { matchPatterns: matches }, excludeMatches: metadata["exclude-match"] || [], css: "", js: source, runAt,
+      world: metadata.grant?.includes("none") ? "MAIN" : "USER_SCRIPT", allFrames: !metadata.noframes });
+    const validation = validateStyle(style);
+    if (!validation.ok) return validation;
+    return { ok: true, style };
   }
 
-  function permissionContains(matchPattern) {
-    return new Promise((resolve) => {
-      chrome.permissions.contains({ origins: [matchPattern] }, (contains) => {
-        if (chromeLastError()) {
-          resolve(false);
-          return;
-        }
-
-        resolve(Boolean(contains));
-      });
-    });
+  function userScriptDefinition(style, permittedPatterns = patternsForStyle(style)) {
+    const code = `(() => {\nconst GM_addStyle = (css) => { const s = document.createElement("style"); s.textContent = String(css); const attach = () => (document.head || document.documentElement).append(s); if (document.documentElement) attach(); else document.addEventListener("DOMContentLoaded", attach, { once: true }); return s; };\nconst GM = Object.freeze({ addStyle: async (css) => GM_addStyle(css) });\ntry {\n${style.js}\n} catch (error) { console.error(${JSON.stringify(`[Personal Page Tweaker: ${style.name}]`)}, error); }\n})();\n//# sourceURL=pps-${encodeURIComponent(style.id)}.user.js`;
+    return { id: USER_SCRIPT_PREFIX + style.id, matches: permittedPatterns, excludeMatches: style.excludeMatches,
+      js: [{ code }], runAt: style.runAt, world: style.world, allFrames: style.allFrames,
+      ...(style.world === "USER_SCRIPT" ? { worldId: "pps-" + style.id } : {}) };
   }
 
-  function permissionRequest(matchPattern) {
-    return new Promise((resolve) => {
-      chrome.permissions.request({ origins: [matchPattern] }, (granted) => {
-        if (chromeLastError()) {
-          resolve(false);
-          return;
-        }
-
-        resolve(Boolean(granted));
-      });
-    });
-  }
-
-  global.PPS = {
-    APP_ID,
-    SCHEMA_VERSION,
-    STORAGE_KEY,
-    CONTENT_STYLE_ID,
-    CONTENT_SCRIPT_PREFIX,
-    MESSAGE_REFRESH,
-    MESSAGE_SYNC,
-    buildExportPayload,
-    getHostFromUrl,
-    getStyles,
-    isHttpUrl,
-    isValidMatchPattern,
-    makeBlankStyle,
-    makeId,
-    makeMatchPatternFromHost,
-    makeMatchPatternFromUrl,
-    makeStyleFromUrl,
-    matchPatternForUrl,
-    normalizeHost,
-    normalizeStyle,
-    nowIso,
-    permissionContains,
-    permissionRequest,
-    setStyles,
-    sortStyles,
-    styleMatchesUrl,
-    validateExportPayload,
-    validateStyle
-  };
+  global.PPS = { APP_ID, SCHEMA_VERSION, STORAGE_KEY, CONTENT_STYLE_ID, CONTENT_SCRIPT_PREFIX, USER_SCRIPT_PREFIX,
+    MESSAGE_REFRESH, MESSAGE_SYNC, MESSAGE_CSS, MESSAGE_MUTATE, nowIso, makeId, lines, normalizeHost, isHttpUrl,
+    getHostFromUrl, parseMatchPattern, isValidMatchPattern, makeMatchPatternFromUrl, makeMatchPatternFromHost,
+    originPattern, matchPatternForUrl, patternsForStyle, matchesStyle, styleMatchesUrl, normalizeStyle, makeBlankStyle,
+    makeStyleFromUrl, validateStyle, sortStyles, validateExportPayload, buildExportPayload, getStyles, setStyles,
+    permissionContains, permissionRequest, sync, mutate, codeLabel, parseUserScript, userScriptDefinition };
 })(globalThis);

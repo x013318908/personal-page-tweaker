@@ -169,6 +169,12 @@ svg {
   white-space: nowrap;
 }
 
+button.style-name { background: transparent; border: 0; padding: 0; cursor: pointer; text-align: left; max-width: 250px; }
+button.style-name:hover { color: var(--accent); text-decoration: underline; }
+.reload-button { padding: 9px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--panel); cursor: pointer; }
+.reload-button:disabled { opacity: .5; cursor: not-allowed; }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .style-state {
   display: block;
   margin-top: 2px;

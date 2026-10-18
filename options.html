@@ -18,7 +18,7 @@
           </div>
           <div>
             <p>Personal Page Tweaker</p>
-            <h1>サイト別CSS</h1>
+            <h1>サイト別カスタマイズ</h1>
           </div>
         </header>
 
@@ -27,7 +27,7 @@
             <path d="m21 21-4.35-4.35"></path>
             <circle cx="11" cy="11" r="7"></circle>
           </svg>
-          <input id="searchInput" type="search" placeholder="検索">
+          <input id="searchInput" type="search" placeholder="名前・サイトで検索" aria-label="設定を検索">
         </div>
 
         <div class="sidebar-actions">
@@ -53,16 +53,17 @@
             </svg>
             Import
           </button>
-          <input id="importInput" class="visually-hidden" type="file" accept="application/json,.json">
+          <input id="importInput" class="visually-hidden" type="file" accept="application/json,.json,.js">
         </div>
 
-        <div id="styleList" class="style-list" aria-label="スタイル一覧"></div>
+        <div id="styleList" class="style-list" aria-label="設定一覧"></div>
+        <p class="sidebar-note">CSSとJavaScriptをまとめて管理。<br>Import: バックアップJSON / .user.js</p>
       </aside>
 
       <section class="editor-panel" aria-label="スタイル編集">
         <header class="editor-header">
           <div>
-            <p id="editorKicker" class="editor-kicker">スタイル編集</p>
+            <p id="editorKicker" class="editor-kicker">CSS + JavaScript</p>
             <h2 id="editorTitle">New style</h2>
           </div>
           <div id="saveStatus" class="save-status" role="status"></div>
@@ -110,15 +111,36 @@
             </div>
 
             <label class="field">
-              <span>Match pattern</span>
-              <input id="patternInput" type="text" placeholder="https://example.com/*" required>
+              <span>対象URL（match pattern・1行に1つ）</span>
+              <textarea id="patternInput" class="pattern-input" rows="2" spellcheck="false" placeholder="https://example.com/*" required></textarea>
             </label>
+            <details>
+              <summary>除外URLとフレーム</summary>
+              <label class="field advanced-field"><span>除外URL（1行に1つ）</span><textarea id="excludeInput" class="pattern-input" rows="2" spellcheck="false" placeholder="https://example.com/account/*"></textarea></label>
+              <label class="check-field"><input id="allFramesInput" type="checkbox">条件に合う埋め込みフレームでも適用する</label>
+            </details>
           </div>
 
-          <label class="field css-field">
-            <span>CSS</span>
-            <textarea id="cssInput" spellcheck="false" placeholder="body {&#10;  font-family: system-ui;&#10;}"></textarea>
-          </label>
+          <div class="code-tabs" role="tablist" aria-label="編集するコード">
+            <button id="cssTab" type="button" role="tab" aria-selected="true" aria-controls="cssPanel">CSS</button>
+            <button id="jsTab" type="button" role="tab" aria-selected="false" aria-controls="jsPanel" tabindex="-1">JavaScript</button>
+          </div>
+          <section id="cssPanel" role="tabpanel" aria-labelledby="cssTab">
+            <div class="code-toolbar"><label class="check-field"><input id="cssEnabledInput" type="checkbox" checked>CSSを有効にする</label><span>保存すると開いているページにも反映</span></div>
+            <label class="field css-field"><span class="visually-hidden">CSS</span><textarea id="cssInput" spellcheck="false" placeholder="body {&#10;  font-family: system-ui;&#10;}"></textarea></label>
+          </section>
+          <section id="jsPanel" role="tabpanel" aria-labelledby="jsTab" hidden>
+            <div class="code-toolbar"><label class="check-field"><input id="jsEnabledInput" type="checkbox" checked>JavaScriptを有効にする</label><span>変更は次のページ読み込みから</span></div>
+            <div id="jsNotice" class="js-notice" role="status"></div>
+            <div class="js-settings">
+              <label class="field"><span>実行タイミング</span><select id="runAtInput"><option value="document_idle">読み込み後（通常）</option><option value="document_end">DOM構築後</option><option value="document_start">読み込み開始時</option></select></label>
+              <label class="field"><span>実行環境</span><select id="worldInput"><option value="USER_SCRIPT">独立した環境（通常）</option><option value="MAIN">ページと同じ環境</option></select></label>
+            </div>
+            <p class="code-help">ページ内の変数や関数を使うときは「ページと同じ環境」を選びます。GM_addStyle / GM.addStyleに対応。その他のGM_*機能は未対応です。</p>
+            <label class="field css-field"><span class="visually-hidden">JavaScript</span><textarea id="jsInput" spellcheck="false" placeholder="// 例: ページの見出しを変更&#10;const heading = document.querySelector('h1');&#10;if (heading) heading.textContent += ' ★';"></textarea></label>
+            <p class="code-help">保存・有効化後は対象ページを再読み込みしてください。停止しても、実行済みの変更は再読み込みまで残ります。実行時エラーは対象ページの開発者ツールに表示されます。</p>
+            <button id="checkScriptsButton" class="secondary-button compact" type="button">実行許可を再確認</button>
+          </section>
 
           <div id="formError" class="form-error" role="alert"></div>
 
@@ -132,7 +154,7 @@
               </svg>
               削除
             </button>
-            <button class="primary-button" type="submit">
+            <button id="saveButton" class="primary-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
                 <path d="M17 21v-8H7v8"></path>

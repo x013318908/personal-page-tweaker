@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Personal Page Tweaker",
-  "description": "Apply your own CSS to individually permitted sites.",
-  "version": "0.1.0",
+  "description": "Apply your own CSS and JavaScript to individually permitted sites. No ads or update tabs.",
+  "version": "0.2.0",
+  "minimum_chrome_version": "138",
   "permissions": [
     "activeTab",
     "downloads",
     "scripting",
-    "storage"
+    "storage",
+    "userScripts"
   ],
   "optional_host_permissions": [
     "http://*/*",
