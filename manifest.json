@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Personal Page Tweaker",
+  "description": "Apply your own CSS to individually permitted sites.",
+  "version": "0.1.0",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Personal Page Tweaker"
+  },
+  "options_page": "options.html"
+}

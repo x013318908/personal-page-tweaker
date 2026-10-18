@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Personal Page Tweaker Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <header class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 18.5c4.5-1.4 6.4-4.5 6.7-9.5.1-2.1 1.8-3.8 4-4l5.3-.5-.5 5.3c-.2 2.2-1.9 3.9-4 4-5 .3-8.1 2.2-9.5 6.7L4 18.5Z"></path>
+              <path d="M12.5 11.5 19 5"></path>
+            </svg>
+          </div>
+          <div>
+            <p>Personal Page Tweaker</p>
+            <h1>サイト別CSS</h1>
+          </div>
+        </header>
+
+        <div class="search-row">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m21 21-4.35-4.35"></path>
+            <circle cx="11" cy="11" r="7"></circle>
+          </svg>
+          <input id="searchInput" type="search" placeholder="検索">
+        </div>
+
+        <div class="sidebar-actions">
+          <button id="newButton" class="secondary-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14M5 12h14"></path>
+            </svg>
+            新規
+          </button>
+          <button id="exportButton" class="secondary-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="m7 10 5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+            Export
+          </button>
+          <button id="importButton" class="secondary-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21V9"></path>
+              <path d="m7 14 5-5 5 5"></path>
+              <path d="M5 3h14"></path>
+            </svg>
+            Import
+          </button>
+          <input id="importInput" class="visually-hidden" type="file" accept="application/json,.json">
+        </div>
+
+        <div id="styleList" class="style-list" aria-label="スタイル一覧"></div>
+      </aside>
+
+      <section class="editor-panel" aria-label="スタイル編集">
+        <header class="editor-header">
+          <div>
+            <p id="editorKicker" class="editor-kicker">スタイル編集</p>
+            <h2 id="editorTitle">New style</h2>
+          </div>
+          <div id="saveStatus" class="save-status" role="status"></div>
+        </header>
+
+        <form id="editorForm" class="editor-form">
+          <div class="form-grid">
+            <label class="field">
+              <span>名前</span>
+              <input id="nameInput" type="text" autocomplete="off" required>
+            </label>
+
+            <label class="field inline-field">
+              <span>有効</span>
+              <input id="enabledInput" type="checkbox">
+            </label>
+          </div>
+
+          <div class="target-card">
+            <div class="target-card-header">
+              <div>
+                <h3>対象サイト</h3>
+                <p id="permissionText">権限を確認しています。</p>
+              </div>
+              <button id="permissionButton" class="secondary-button compact" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3 4.5 6v5.5c0 4.5 3.1 8.6 7.5 9.5 4.4-.9 7.5-5 7.5-9.5V6L12 3Z"></path>
+                  <path d="m9 12 2 2 4-5"></path>
+                </svg>
+                権限を許可
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <label class="field">
+                <span>URLまたはhost</span>
+                <input id="hostInput" type="text" placeholder="https://example.com/">
+              </label>
+              <button id="buildPatternButton" class="secondary-button align-end" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M4 12h10M4 17h7"></path>
+                </svg>
+                パターン作成
+              </button>
+            </div>
+
+            <label class="field">
+              <span>Match pattern</span>
+              <input id="patternInput" type="text" placeholder="https://example.com/*" required>
+            </label>
+          </div>
+
+          <label class="field css-field">
+            <span>CSS</span>
+            <textarea id="cssInput" spellcheck="false" placeholder="body {&#10;  font-family: system-ui;&#10;}"></textarea>
+          </label>
+
+          <div id="formError" class="form-error" role="alert"></div>
+
+          <footer class="editor-actions">
+            <button id="deleteButton" class="danger-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16"></path>
+                <path d="M10 11v6M14 11v6"></path>
+                <path d="M6 7l1 14h10l1-14"></path>
+                <path d="M9 7V4h6v3"></path>
+              </svg>
+              削除
+            </button>
+            <button class="primary-button" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                <path d="M17 21v-8H7v8"></path>
+                <path d="M7 3v5h8"></path>
+              </svg>
+              保存
+            </button>
+          </footer>
+        </form>
+      </section>
+    </main>
+
+    <section id="importPreview" class="import-preview" hidden>
+      <div class="import-dialog" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+        <header>
+          <div>
+            <p>Import preview</p>
+            <h2 id="importTitle">設定を置き換えます</h2>
+          </div>
+          <button id="cancelImportButton" class="icon-button" type="button" aria-label="閉じる">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <p id="importSummary" class="import-summary"></p>
+        <ul id="importNames" class="import-names"></ul>
+        <div class="dialog-actions">
+          <button id="closeImportButton" class="secondary-button" type="button">キャンセル</button>
+          <button id="confirmImportButton" class="primary-button" type="button">置き換える</button>
+        </div>
+      </div>
+    </section>
+
+    <script src="shared.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+*.zip
+*.crx
+*.pem
+*.log
+.env
+.env.*
+!.env.example
+Thumbs.db
+.DS_Store

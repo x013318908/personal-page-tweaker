@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Personal Page Tweaker</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div>
+          <p class="eyebrow">Personal Page Tweaker</p>
+          <h1 id="currentHost">読み込み中</h1>
+        </div>
+        <button id="openOptionsButton" class="icon-button" type="button" title="設定を開く" aria-label="設定を開く">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"></path>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.05.05a2.05 2.05 0 0 1-2.9 2.9l-.05-.05a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56v.15a2.05 2.05 0 0 1-4.1 0V21a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.05.05a2.05 2.05 0 0 1-2.9-2.9l.05-.05A1.7 1.7 0 0 0 4.36 15a1.7 1.7 0 0 0-1.56-1.03h-.15a2.05 2.05 0 0 1 0-4.1h.15a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.88l-.05-.05a2.05 2.05 0 0 1 2.9-2.9l.05.05a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 9.83 2.8v-.15a2.05 2.05 0 0 1 4.1 0v.15a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.05-.05a2.05 2.05 0 0 1 2.9 2.9l-.05.05a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.15a2.05 2.05 0 0 1 0 4.1h-.15A1.7 1.7 0 0 0 19.4 15Z"></path>
+          </svg>
+        </button>
+      </header>
+
+      <p id="statusText" class="status-text">現在のタブを確認しています。</p>
+
+      <section class="style-section" aria-label="このサイトのスタイル">
+        <div class="section-heading">
+          <h2>このサイト</h2>
+          <span id="styleCount" class="count">0</span>
+        </div>
+        <div id="styleList" class="style-list"></div>
+      </section>
+
+      <footer class="popup-actions">
+        <button id="createButton" class="primary-button" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+          このサイト用に作成
+        </button>
+      </footer>
+    </main>
+
+    <script src="shared.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
