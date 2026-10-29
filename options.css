@@ -441,7 +441,10 @@ h3 {
 .code-toolbar > span { color: var(--muted); font-size: 12px; }
 .check-field { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .check-field input { accent-color: var(--accent); width: 16px; height: 16px; }
-.js-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0 10px; }
+.js-settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 14px 0 10px; }
+.js-editors { display: grid; gap: 18px; }
+.js-field { min-width: 0; }
+.field.js-field textarea { min-height: 220px; }
 .field select { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--input-bg); color: var(--text); width: 100%; }
 .js-notice { padding: 12px 14px; border-radius: 8px; background: var(--warning-soft); color: var(--warning); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-line; }
 .js-notice.is-success { background: var(--success-soft); color: var(--success); }
@@ -451,7 +454,6 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 button:focus-visible, summary:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .code-help { margin: 10px 0; }
-@media (max-width: 620px) { .js-settings { grid-template-columns: 1fr; } }
 
 .form-error {
   min-height: 20px;

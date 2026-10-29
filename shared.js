@@ -1,7 +1,9 @@
 (function (global) {
   "use strict";
   const APP_ID = "personal-page-styler";
-  const SCHEMA_VERSION = 2;
+  const SCHEMA_VERSION = 3;
+  const RUN_ATS = Object.freeze(["document_start", "document_end", "document_idle"]);
+  const RUN_AT_LABELS = Object.freeze({ document_start: "読み込み開始時", document_end: "DOM構築後", document_idle: "読み込み後" });
   // Keep the v1 key so an in-place upgrade retains existing CSS.
   const STORAGE_KEY = "personalPageStyler.styles";
   const CONTENT_STYLE_ID = "personal-page-styler-style";
@@ -69,13 +71,17 @@
   function normalizeStyle(style) {
     const timestamp = nowIso();
     const patterns = Array.isArray(style.site?.matchPatterns) ? [...new Set(style.site.matchPatterns)] : [style.site?.matchPattern || ""];
+    // A timing map is authoritative, including empty slots. Only migrate the
+    // single-script format when no map exists, so cleared code stays cleared.
+    const scripts = style.jsByRunAt !== undefined ? style.jsByRunAt : { [style.runAt || "document_idle"]: style.js || "" };
+    const jsByRunAt = Object.fromEntries(RUN_ATS.map(runAt => [runAt, scripts[runAt] || ""]));
     return {
       id: style.id || makeId(), name: (style.name || "新しい設定").trim(), enabled: style.enabled !== false,
       site: { host: style.site?.host || parseMatchPattern(patterns[0])?.host || "", matchPattern: patterns[0] || "", matchPatterns: patterns },
       excludeMatches: style.excludeMatches || [],
       css: style.css || "", cssEnabled: style.cssEnabled !== false,
-      js: style.js || "", jsEnabled: style.jsEnabled !== false,
-      runAt: style.runAt || "document_idle", world: style.world || "USER_SCRIPT", allFrames: style.allFrames === true,
+      jsByRunAt, jsEnabled: style.jsEnabled !== false,
+      world: style.world || "USER_SCRIPT", allFrames: style.allFrames === true,
       createdAt: style.createdAt || timestamp, updatedAt: style.updatedAt || timestamp
     };
   }
@@ -94,15 +100,17 @@
     if (!Array.isArray(patterns) || !patterns.length || patterns.some(p => typeof p !== "string" || !isValidMatchPattern(p))) return fail("対象URLをChromeのmatch patternで入力してください。例: https://example.com/*");
     if (style.excludeMatches !== undefined && (!Array.isArray(style.excludeMatches) || style.excludeMatches.some(p => typeof p !== "string" || !isValidMatchPattern(p)))) return fail("除外URLの書式が正しくありません。");
     if (typeof style.css !== "string" || (style.js !== undefined && typeof style.js !== "string")) return fail("CSSとJavaScriptは文字列で指定してください。");
+    if (style.jsByRunAt !== undefined && (!style.jsByRunAt || typeof style.jsByRunAt !== "object" || Array.isArray(style.jsByRunAt) ||
+      Object.entries(style.jsByRunAt).some(([runAt, code]) => !RUN_ATS.includes(runAt) || typeof code !== "string"))) return fail("タイミング別のJavaScriptの形式が正しくありません。");
     for (const key of ["cssEnabled", "jsEnabled", "allFrames"]) if (style[key] !== undefined && typeof style[key] !== "boolean") return fail(`${key} の値が正しくありません。`);
-    if (style.runAt !== undefined && !["document_start", "document_end", "document_idle"].includes(style.runAt)) return fail("実行タイミングが正しくありません。");
+    if (style.runAt !== undefined && !RUN_ATS.includes(style.runAt)) return fail("実行タイミングが正しくありません。");
     if (style.world !== undefined && !["USER_SCRIPT", "MAIN"].includes(style.world)) return fail("実行環境が正しくありません。");
     if (style.site.host !== undefined && typeof style.site.host !== "string") return fail("サイト名が正しくありません。");
     return { ok: true };
   }
   const sortStyles = styles => [...styles].sort((a, b) => a.site.host.localeCompare(b.site.host) || a.name.localeCompare(b.name));
   function validateExportPayload(payload) {
-    if (!payload || payload.app !== APP_ID || ![1, 2].includes(payload.schemaVersion) || !Array.isArray(payload.styles)) return { ok: false, reason: "Personal Page Tweakerのv1/v2バックアップではありません。" };
+    if (!payload || payload.app !== APP_ID || ![1, 2, 3].includes(payload.schemaVersion) || !Array.isArray(payload.styles)) return { ok: false, reason: "Personal Page Tweakerのv1/v2/v3バックアップではありません。" };
     const seen = new Set(), styles = [];
     for (const raw of payload.styles) {
       const result = validateStyle(raw);
@@ -138,7 +146,8 @@
   }
   const sync = () => request({ type: MESSAGE_SYNC });
   const mutate = (operation, data) => request({ type: MESSAGE_MUTATE, operation, ...data });
-  const codeLabel = style => [style.css.trim() ? "CSS" : "", style.js.trim() ? "JS" : ""].filter(Boolean).join(" + ") || "空";
+  const hasJavaScript = style => RUN_ATS.some(runAt => style.jsByRunAt[runAt].trim());
+  const codeLabel = style => [style.css.trim() ? "CSS" : "", hasJavaScript(style) ? "JS" : ""].filter(Boolean).join(" + ") || "空";
 
   function parseUserScript(source) {
     const block = source.match(/^[ \t]*\/\/\s*==UserScript==\s*\r?\n([\s\S]*?)^[ \t]*\/\/\s*==\/UserScript==/m);
@@ -154,6 +163,7 @@
     const matches = metadata.match || [];
     if (!matches.length) return { ok: false, reason: "@matchが必要です。" };
     const runAt = (metadata["run-at"]?.[0] || "document-idle").replaceAll("-", "_");
+    if (!RUN_ATS.includes(runAt)) return { ok: false, reason: "実行タイミングが正しくありません。" };
     const style = normalizeStyle({ id: makeId(), name: metadata.name?.[0] || "インポートしたスクリプト", enabled: false,
       site: { matchPatterns: matches }, excludeMatches: metadata["exclude-match"] || [], css: "", js: source, runAt,
       world: metadata.grant?.includes("none") ? "MAIN" : "USER_SCRIPT", allFrames: !metadata.noframes });
@@ -162,17 +172,19 @@
     return { ok: true, style };
   }
 
-  function userScriptDefinition(style, permittedPatterns = patternsForStyle(style)) {
-    const code = `(() => {\nconst GM_addStyle = (css) => { const s = document.createElement("style"); s.textContent = String(css); const attach = () => (document.head || document.documentElement).append(s); if (document.documentElement) attach(); else document.addEventListener("DOMContentLoaded", attach, { once: true }); return s; };\nconst GM = Object.freeze({ addStyle: async (css) => GM_addStyle(css) });\ntry {\n${style.js}\n} catch (error) { console.error(${JSON.stringify(`[Personal Page Tweaker: ${style.name}]`)}, error); }\n})();\n//# sourceURL=pps-${encodeURIComponent(style.id)}.user.js`;
-    return { id: USER_SCRIPT_PREFIX + style.id, matches: permittedPatterns, excludeMatches: style.excludeMatches,
-      js: [{ code }], runAt: style.runAt, world: style.world, allFrames: style.allFrames,
-      ...(style.world === "USER_SCRIPT" ? { worldId: "pps-" + style.id } : {}) };
+  function userScriptDefinitions(style, permittedPatterns = patternsForStyle(style)) {
+    return RUN_ATS.filter(runAt => style.jsByRunAt[runAt].trim()).map(runAt => {
+      const code = `(() => {\nconst GM_addStyle = (css) => { const s = document.createElement("style"); s.textContent = String(css); const attach = () => (document.head || document.documentElement).append(s); if (document.documentElement) attach(); else document.addEventListener("DOMContentLoaded", attach, { once: true }); return s; };\nconst GM = Object.freeze({ addStyle: async (css) => GM_addStyle(css) });\ntry {\n${style.jsByRunAt[runAt]}\n} catch (error) { console.error(${JSON.stringify(`[Personal Page Tweaker: ${style.name} / ${RUN_AT_LABELS[runAt]}]`)}, error); }\n})();\n//# sourceURL=pps-${encodeURIComponent(style.id)}-${runAt}.user.js`;
+      return { id: USER_SCRIPT_PREFIX + style.id + ":" + runAt, matches: permittedPatterns, excludeMatches: style.excludeMatches,
+        js: [{ code }], runAt, world: style.world, allFrames: style.allFrames,
+        ...(style.world === "USER_SCRIPT" ? { worldId: "pps-" + style.id } : {}) };
+    });
   }
 
-  global.PPS = { APP_ID, SCHEMA_VERSION, STORAGE_KEY, CONTENT_STYLE_ID, CONTENT_SCRIPT_PREFIX, USER_SCRIPT_PREFIX,
+  global.PPS = { APP_ID, SCHEMA_VERSION, RUN_ATS, RUN_AT_LABELS, STORAGE_KEY, CONTENT_STYLE_ID, CONTENT_SCRIPT_PREFIX, USER_SCRIPT_PREFIX,
     MESSAGE_REFRESH, MESSAGE_SYNC, MESSAGE_CSS, MESSAGE_MUTATE, nowIso, makeId, lines, normalizeHost, isHttpUrl,
     getHostFromUrl, parseMatchPattern, isValidMatchPattern, makeMatchPatternFromUrl, makeMatchPatternFromHost,
     originPattern, matchPatternForUrl, patternsForStyle, matchesStyle, styleMatchesUrl, normalizeStyle, makeBlankStyle,
     makeStyleFromUrl, validateStyle, sortStyles, validateExportPayload, buildExportPayload, getStyles, setStyles,
-    permissionContains, permissionRequest, sync, mutate, codeLabel, parseUserScript, userScriptDefinition };
+    permissionContains, permissionRequest, sync, mutate, hasJavaScript, codeLabel, parseUserScript, userScriptDefinitions };
 })(globalThis);

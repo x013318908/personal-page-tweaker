@@ -23,7 +23,7 @@
       if (style.enabled) {
         if (!await PPS.permissionContains(PPS.patternsForStyle(style))) note = "サイト権限が必要";
         else if (status.errors?.some(e => !e.id || e.id === style.id)) note = "登録エラー・設定を確認";
-        else if (style.jsEnabled && style.js.trim() && !status.userScriptsAvailable) note = "JS実行許可が必要";
+        else if (style.jsEnabled && PPS.hasJavaScript(style) && !status.userScriptsAvailable) note = "JS実行許可が必要";
         if (note !== "有効") state.classList.add("warning");
       }
       state.textContent = `${PPS.codeLabel(style)} · ${note}`;
@@ -40,8 +40,8 @@
           styles = response.styles; status = response; await render();
           const problem = response.errors?.find(e => !e.id || e.id === style.id);
           if (problem) setStatus(`保存済みですが登録に失敗しました: ${problem.message}`, true);
-          else if (checkbox.checked && style.jsEnabled && style.js.trim() && !status.userScriptsAvailable) setStatus("Chromeでユーザースクリプトを許可してください。設定画面に手順があります。", true);
-          else setStatus(style.js.trim() ? "変更しました。JavaScriptの変更を反映するには再読み込みしてください。" : "変更しました。");
+          else if (checkbox.checked && style.jsEnabled && PPS.hasJavaScript(style) && !status.userScriptsAvailable) setStatus("Chromeでユーザースクリプトを許可してください。設定画面に手順があります。", true);
+          else setStatus(PPS.hasJavaScript(style) ? "変更しました。JavaScriptの変更を反映するには再読み込みしてください。" : "変更しました。");
         } catch (error) { checkbox.checked = style.enabled; fail(error); }
         finally { checkbox.disabled = false; }
       });

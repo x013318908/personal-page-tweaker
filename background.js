@@ -59,7 +59,8 @@ importScripts("shared.js");
       } catch (error) {
         // Never leave an older script active when the replacement fails.
         await chrome.userScripts.unregister({ ids: [definition.id] }).catch(() => {});
-        errors.push({ id: definition.id.slice(PPS.USER_SCRIPT_PREFIX.length), message: error.message });
+        const id = definition.id.slice(PPS.USER_SCRIPT_PREFIX.length, -(definition.runAt.length + 1));
+        errors.push({ id, message: `${PPS.RUN_AT_LABELS[definition.runAt]}: ${error.message}` });
       }
     }
     return { available: true, errors };
@@ -86,7 +87,7 @@ importScripts("shared.js");
       if (patterns.length !== PPS.patternsForStyle(style).length) missingPermissions.push(style.id);
       if (!patterns.length) continue;
       if (style.cssEnabled && style.css.trim()) cssOrigins.push(...patterns.map(PPS.originPattern));
-      if (style.jsEnabled && style.js.trim()) definitions.push(PPS.userScriptDefinition(style, patterns));
+      if (style.jsEnabled) definitions.push(...PPS.userScriptDefinitions(style, patterns));
     }
     const errors = [];
     try { await reconcileContent(cssOrigins); }

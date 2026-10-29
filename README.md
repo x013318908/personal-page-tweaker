@@ -1,10 +1,10 @@
-# Personal Page Tweaker 0.2.0
+# Personal Page Tweaker 0.3.0
 
-自分用のCSSとJavaScriptを、サイトごとに保存・実行するChrome拡張です。従来のCSS編集画面にJavaScriptタブを追加しました。Chrome 138以降に対応します。
+自分用のCSSとJavaScriptを、サイトごとに保存・実行するChrome拡張です。JavaScriptは3つの実行タイミングにそれぞれコードを保存でき、すべて同時に有効にできます。Chrome 138以降に対応します。
 
 広告、アクセス解析、更新時にページを開く処理、外部からの自動更新・コード取得はありません。設定はブラウザー内の `chrome.storage.local` に保存します。ユーザーが登録したコード自身の通信は、そのコードの内容に従います。
 
-## 既存の0.1.0から更新
+## 既存の0.1.0 / 0.2.0から更新
 
 1. 現在の拡張の **Export** で設定をバックアップします。
 2. このフォルダーのファイルを、従来読み込んでいた `personal-page-styler` フォルダーに上書きコピーします。フォルダーの場所を変えず、拡張を削除せずに更新します。
@@ -12,7 +12,9 @@
 4. 同じ拡張の **詳細 → ユーザースクリプトを許可する** をオンにします。CSSだけを使う場合、このスイッチは不要です。
 5. 編集画面と対象ページを再読み込みします。
 
-保存キーと設定IDを引き継ぐため、既存CSSはそのまま使えます。v1のExportファイルもImportできます。0.2.0のExportはv2形式です。旧版へ戻す場合は、更新前に取ったv1バックアップを使ってください。
+保存キーと設定IDを引き継ぐため、既存CSSはそのまま使えます。0.2.0のJavaScriptは、これまで選択していた実行タイミングの欄へ自動的に引き継ぎます。その他の欄は空欄になります。有効／無効、実行環境、対象URLなども保持します。
+
+v1/v2のExportファイルもImportできます。0.3.0のExportは、タイミング別のJavaScriptを含むv3形式です。旧版へ戻す場合は、更新前に取ったバックアップを使ってください。
 
 **別の場所から読み込むと、Chromeは別の拡張として扱います。** その場合は旧拡張でExport → 新拡張でImportし、サイト権限を許可し直してください。同時適用を避けるため、移行後は旧拡張を停止します。
 
@@ -33,7 +35,8 @@
 - CSSとJavaScriptは、タブ内のチェックボックスで個別に有効／無効を切り替えられます。上部の「有効」は設定全体の切り替えです。
 - ポップアップから設定の切り替え、名前を押して編集、対象ページの再読み込みができます。
 - 対象ページ内のJavaScript変数に触れる場合は **ページと同じ環境** を選びます。通常は **独立した環境** を使ってください。独立した環境は設定ごとに分かれています。
-- 読み込み開始時・DOM構築後・読み込み後からJavaScriptの実行タイミングを選べます。既定は「読み込み後」です。
+- JavaScriptタブには **読み込み開始時（document_start）・DOM構築後（document_end）・読み込み後（document_idle）** の3つの編集欄があります。コードを入力した欄はすべて有効になり、それぞれのタイミングで1回ずつ実行します。実行しないタイミングは空欄にしてください。通常のコードは「読み込み後」に入力します。
+- JavaScriptの有効／無効と実行環境は3つの欄で共通です。独立した環境でも、同じ設定の3つのタイミングは同じ環境を使います。タイミング間で値を引き継ぐ場合は `globalThis` のプロパティに保存してください。各欄の `let` / `const` などのローカル変数は欄ごとに分かれています。
 
 実行済みのページへの再適用は、再読み込みボタンで明示的に行います。SPAのURL変更だけではJavaScriptは再実行されません。必要なら登録するスクリプト内で `MutationObserver` などを使ってください。
 
@@ -65,6 +68,8 @@ Chrome内部ページ、Chrome Web Storeなど、Chromeが拡張の実行を制�
 
 `@grant none` はページと同じ環境を選びます。その他は独立した環境を選びます。`GM_addStyle(css)` はstyle要素を返し、`GM.addStyle(css)` はそれをPromiseで返します。
 
+コードは `@run-at` に対応する編集欄へ取り込みます。`@run-at` がなければ「読み込み後」に入ります。他のタイミングの欄は空欄です。
+
 **Tampermonkey/Greasemonkeyとの完全互換ではありません。** `GM_getValue`、`GM_setValue`、`GM_xmlhttpRequest`、`unsafeWindow`、メニュー追加などは未実装です。`@require`、`@resource`、`@include`、`@exclude`など実行に影響する未対応指定を含むファイルは、Import時にエラーを表示します。`@updateURL`、`@downloadURL`、`@version`などは自動更新に使用しません。
 
 JavaScript欄に直接貼り付けた場合、メタデータコメントは解釈されません。対象URLなどは画面側で設定してください。外部スクリプトのURLを貼り付けて自動インストールする機能はありません。
@@ -84,19 +89,21 @@ copy(JSON.stringify((await chrome.storage.local.get('personalPageStyler.beforeIm
 - 編集画面でサイト権限を確認します。
 - JavaScriptタブの実行許可表示を確認します。「ユーザースクリプトを許可する」を変更したら **実行許可を再確認**。反映されなければ拡張自体を再読み込みします。
 - 対象ページを再読み込みします。
-- 実行時エラーは対象ページの開発者ツールのConsoleで確認します。捕捉できる同期エラーには `[Personal Page Tweaker: 設定名]` が付きます。構文エラー・非同期エラーはChrome標準のConsoleに表示されます。
+- 実行時エラーは対象ページの開発者ツールのConsoleで確認します。捕捉できる同期エラーには `[Personal Page Tweaker: 設定名 / 実行タイミング]` が付きます。構文エラー・非同期エラーはChrome標準のConsoleに表示されます。
 
 ## 構成・テスト
 
 Manifest V3。依存パッケージ・ビルド工程は不要です。CSSは付属のcontent script、ユーザーJavaScriptはChromeの `userScripts` APIで実行します。ユーザーJavaScriptに拡張のストレージやメッセージAPIを公開しません。
 
 ```powershell
-node --test tests/core.test.cjs
+node --test tests/*.test.cjs
 node tests/browser-smoke.cjs
 ```
 
 ブラウザーテストは別の一時プロファイルを使います。`PPS_CHROMIUM` 環境変数でChromium / Chrome for Testingの実行ファイルを指定できます。通常のChromeプロファイルにはアクセスしません。
 
-2026-10-05、Windows上のChromium 145.0.7632.6で確認済み: 旧CSSデータの引き継ぎ、実際の編集画面からの保存、CSSの即時反映、JavaScriptの一度だけの実行、除外URL、停止、独立した環境／ページと同じ環境、読み込み開始時の実行、フレーム、拡張再読み込み後の復元、サイト権限取り消し。データ形式・URL条件・UserScriptヘッダーの自動テスト5件も通過しています。
+自動テストは、旧CSS・単一JavaScriptデータの引き継ぎ、v3バックアップ、タイミング別コードの検証、URL条件、UserScriptヘッダー、スクリプト登録の更新と削除を確認します。ブラウザーテストは、実際の編集画面からの3欄の保存・再表示、各タイミングでの一度だけの実行、1欄だけ空にしたときの停止、CSSの即時反映、除外URL、設定全体の停止、独立した環境／ページと同じ環境、フレーム、拡張再読み込み後の復元、サイト権限取り消しを確認します。
+
+2026-10-29、Linux上のChrome for Testing 151.0.7922.34で、自動テスト12件とブラウザーテストの通過を確認しています。
 
 公式API資料: [Chrome userScripts API](https://developer.chrome.com/docs/extensions/reference/api/userScripts)
