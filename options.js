@@ -1,6 +1,7 @@
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
+  const jsInputs = { document_start: "jsStartInput", document_end: "jsEndInput", document_idle: "jsIdleInput" };
   let styles = [], draft = PPS.makeBlankStyle(), dirty = false, busy = false, pendingImport = null;
   let status = { userScriptsAvailable: false, errors: [], missingPermissions: [] };
   let permissions = new Map(), permissionVersion = 0;
@@ -21,9 +22,10 @@
     const matchPatterns = PPS.lines($("patternInput").value);
     return { ...draft, name: $("nameInput").value.trim(), enabled: $("enabledInput").checked,
       site: { host: PPS.parseMatchPattern(matchPatterns[0])?.host || "", matchPattern: matchPatterns[0] || "", matchPatterns },
-      excludeMatches: PPS.lines($("excludeInput").value), css: $("cssInput").value, js: $("jsInput").value,
+      excludeMatches: PPS.lines($("excludeInput").value), css: $("cssInput").value,
+      jsByRunAt: Object.fromEntries(PPS.RUN_ATS.map(runAt => [runAt, $(jsInputs[runAt]).value])),
       cssEnabled: $("cssEnabledInput").checked, jsEnabled: $("jsEnabledInput").checked,
-      runAt: $("runAtInput").value, world: $("worldInput").value, allFrames: $("allFramesInput").checked };
+      world: $("worldInput").value, allFrames: $("allFramesInput").checked };
   }
   function showDraft(style) {
     draft = structuredClone(style); dirty = false;
@@ -33,13 +35,14 @@
     $("hostInput").value = style.site.host;
     $("patternInput").value = PPS.patternsForStyle(style).filter(Boolean).join("\n");
     $("excludeInput").value = style.excludeMatches.join("\n");
-    $("cssInput").value = style.css; $("jsInput").value = style.js;
+    $("cssInput").value = style.css;
+    for (const runAt of PPS.RUN_ATS) $(jsInputs[runAt]).value = style.jsByRunAt[runAt];
     $("cssEnabledInput").checked = style.cssEnabled; $("jsEnabledInput").checked = style.jsEnabled;
-    $("runAtInput").value = style.runAt; $("worldInput").value = style.world;
+    $("worldInput").value = style.world;
     $("allFramesInput").checked = style.allFrames;
     $("deleteButton").disabled = !styles.some(s => s.id === style.id);
     $("formError").textContent = "";
-    activateTab(style.js && !style.css ? "js" : "css");
+    activateTab(PPS.hasJavaScript(style) && !style.css ? "js" : "css");
     renderList(); renderScriptStatus(); updatePermission().catch(report);
   }
   function renderScriptStatus() {
@@ -84,7 +87,7 @@
       if (!style.enabled) pill.textContent = "停止中";
       else if (!permissions.get(style.id)) { pill.textContent = "権限必要"; pill.classList.add("is-warning"); }
       else if (status.errors?.some(e => !e.id || e.id === style.id)) { pill.textContent = "登録エラー"; pill.classList.add("is-warning"); }
-      else if (style.jsEnabled && style.js.trim() && !status.userScriptsAvailable) { pill.textContent = "JS許可待ち"; pill.classList.add("is-warning"); }
+      else if (style.jsEnabled && PPS.hasJavaScript(style) && !status.userScriptsAvailable) { pill.textContent = "JS許可待ち"; pill.classList.add("is-warning"); }
       else { pill.textContent = "有効"; pill.classList.add("is-on"); }
       button.append(main, pill);
       button.addEventListener("click", () => { if (!busy && canLeave()) { showDraft(style); setStatus(""); } });
@@ -112,8 +115,8 @@
       const problem = status.errors?.find(e => !e.id || e.id === style.id);
       if (problem) { $("formError").textContent = problem.message; setStatus("保存済みですが、実行登録に失敗しました。", "warning"); }
       else if (!permissions.get(style.id)) setStatus("保存しました。適用にはサイトの権限が必要です。", "warning");
-      else if (style.js.trim() && style.jsEnabled && !status.userScriptsAvailable) setStatus("保存しました。ChromeでJavaScriptの実行許可が必要です。", "warning");
-      else setStatus(style.js.trim() ? "保存しました。JavaScriptの反映には対象ページを再読み込みしてください。" : "保存しました。CSSを反映しました。", "success");
+      else if (PPS.hasJavaScript(style) && style.jsEnabled && !status.userScriptsAvailable) setStatus("保存しました。ChromeでJavaScriptの実行許可が必要です。", "warning");
+      else setStatus(PPS.hasJavaScript(style) ? "保存しました。JavaScriptの反映には対象ページを再読み込みしてください。" : "保存しました。CSSを反映しました。", "success");
     } finally { busy = false; $("saveButton").disabled = false; }
   }
   async function remove() {
@@ -188,7 +191,7 @@
       activateTab(next); $(next + "Tab").focus();
     });
   }
-  for (const id of ["cssInput", "jsInput"]) $(id).addEventListener("keydown", event => {
+  for (const id of ["cssInput", ...Object.values(jsInputs)]) $(id).addEventListener("keydown", event => {
     if (event.key !== "Tab" || event.shiftKey) return;
     event.preventDefault(); const editor = event.target;
     editor.setRangeText("  ", editor.selectionStart, editor.selectionEnd, "end"); markDirty();

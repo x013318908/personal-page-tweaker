@@ -133,11 +133,15 @@
             <div class="code-toolbar"><label class="check-field"><input id="jsEnabledInput" type="checkbox" checked>JavaScriptを有効にする</label><span>変更は次のページ読み込みから</span></div>
             <div id="jsNotice" class="js-notice" role="status"></div>
             <div class="js-settings">
-              <label class="field"><span>実行タイミング</span><select id="runAtInput"><option value="document_idle">読み込み後（通常）</option><option value="document_end">DOM構築後</option><option value="document_start">読み込み開始時</option></select></label>
               <label class="field"><span>実行環境</span><select id="worldInput"><option value="USER_SCRIPT">独立した環境（通常）</option><option value="MAIN">ページと同じ環境</option></select></label>
             </div>
             <p class="code-help">ページ内の変数や関数を使うときは「ページと同じ環境」を選びます。GM_addStyle / GM.addStyleに対応。その他のGM_*機能は未対応です。</p>
-            <label class="field css-field"><span class="visually-hidden">JavaScript</span><textarea id="jsInput" spellcheck="false" placeholder="// 例: ページの見出しを変更&#10;const heading = document.querySelector('h1');&#10;if (heading) heading.textContent += ' ★';"></textarea></label>
+            <p id="jsTimingHelp" class="code-help">タイミングごとに別のJavaScriptを保存できます。コードを入力した欄はすべて有効になり、それぞれのタイミングで1回ずつ実行します。実行しないタイミングは空欄にしてください。</p>
+            <div class="js-editors" aria-describedby="jsTimingHelp">
+              <label class="field js-field"><span>読み込み開始時（document_start）</span><textarea id="jsStartInput" spellcheck="false" placeholder="// DOMの構築前に実行するコード"></textarea></label>
+              <label class="field js-field"><span>DOM構築後（document_end）</span><textarea id="jsEndInput" spellcheck="false" placeholder="// DOMが構築された後に実行するコード"></textarea></label>
+              <label class="field js-field"><span>読み込み後（document_idle・通常）</span><textarea id="jsIdleInput" spellcheck="false" placeholder="// 例: ページの見出しを変更&#10;const heading = document.querySelector('h1');&#10;if (heading) heading.textContent += ' ★';"></textarea></label>
+            </div>
             <p class="code-help">保存・有効化後は対象ページを再読み込みしてください。停止しても、実行済みの変更は再読み込みまで残ります。実行時エラーは対象ページの開発者ツールに表示されます。</p>
             <button id="checkScriptsButton" class="secondary-button compact" type="button">実行許可を再確認</button>
           </section>
