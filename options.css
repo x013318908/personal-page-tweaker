@@ -442,9 +442,12 @@ h3 {
 .check-field { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .check-field input { accent-color: var(--accent); width: 16px; height: 16px; }
 .js-settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 14px 0 10px; }
-.js-editors { display: grid; gap: 18px; }
+.js-timing-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; }
+.js-timing-tabs button { padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; }
+.js-timing-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+.js-timing-tabs button:not([aria-selected="true"]):hover { background: var(--button-hover); }
 .js-field { min-width: 0; }
-.field.js-field textarea { min-height: 220px; }
+.field.js-field textarea { min-height: 480px; height: 65vh; }
 .field select { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--input-bg); color: var(--text); width: 100%; }
 .js-notice { padding: 12px 14px; border-radius: 8px; background: var(--warning-soft); color: var(--warning); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-line; }
 .js-notice.is-success { background: var(--success-soft); color: var(--success); }
