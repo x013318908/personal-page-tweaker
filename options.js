@@ -1,7 +1,8 @@
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
-  const jsInputs = { document_start: "jsStartInput", document_end: "jsEndInput", document_idle: "jsIdleInput" };
+  const jsEditors = { document_start: "jsStart", document_end: "jsEnd", document_idle: "jsIdle" };
+  let activeJsTiming = "document_idle";
   let styles = [], draft = PPS.makeBlankStyle(), dirty = false, busy = false, pendingImport = null;
   let status = { userScriptsAvailable: false, errors: [], missingPermissions: [] };
   let permissions = new Map(), permissionVersion = 0;
@@ -18,16 +19,32 @@
       $(name + "Tab").tabIndex = active ? 0 : -1;
     }
   }
+  function activateJsTiming(runAt) {
+    activeJsTiming = runAt;
+    for (const timing of PPS.RUN_ATS) {
+      const active = timing === runAt, id = jsEditors[timing];
+      $(id + "Panel").hidden = !active;
+      $(id + "Tab").setAttribute("aria-selected", String(active));
+      $(id + "Tab").tabIndex = active ? 0 : -1;
+    }
+  }
   function formValue() {
     const matchPatterns = PPS.lines($("patternInput").value);
     return { ...draft, name: $("nameInput").value.trim(), enabled: $("enabledInput").checked,
       site: { host: PPS.parseMatchPattern(matchPatterns[0])?.host || "", matchPattern: matchPatterns[0] || "", matchPatterns },
       excludeMatches: PPS.lines($("excludeInput").value), css: $("cssInput").value,
-      jsByRunAt: Object.fromEntries(PPS.RUN_ATS.map(runAt => [runAt, $(jsInputs[runAt]).value])),
+      jsByRunAt: Object.fromEntries(PPS.RUN_ATS.map(runAt => [runAt, $(jsEditors[runAt] + "Input").value])),
       cssEnabled: $("cssEnabledInput").checked, jsEnabled: $("jsEnabledInput").checked,
       world: $("worldInput").value, allFrames: $("allFramesInput").checked };
   }
   function showDraft(style) {
+    const sameStyle = style.id === draft.id;
+    const codeTab = sameStyle
+      ? ($("jsTab").getAttribute("aria-selected") === "true" ? "js" : "css")
+      : (PPS.hasJavaScript(style) && !style.css ? "js" : "css");
+    const timing = sameStyle ? activeJsTiming
+      : style.jsByRunAt.document_idle.trim() ? "document_idle"
+      : PPS.RUN_ATS.find(runAt => style.jsByRunAt[runAt].trim()) || "document_idle";
     draft = structuredClone(style); dirty = false;
     $("nameInput").value = style.name;
     $("editorTitle").textContent = style.name;
@@ -36,13 +53,13 @@
     $("patternInput").value = PPS.patternsForStyle(style).filter(Boolean).join("\n");
     $("excludeInput").value = style.excludeMatches.join("\n");
     $("cssInput").value = style.css;
-    for (const runAt of PPS.RUN_ATS) $(jsInputs[runAt]).value = style.jsByRunAt[runAt];
+    for (const runAt of PPS.RUN_ATS) $(jsEditors[runAt] + "Input").value = style.jsByRunAt[runAt];
     $("cssEnabledInput").checked = style.cssEnabled; $("jsEnabledInput").checked = style.jsEnabled;
     $("worldInput").value = style.world;
     $("allFramesInput").checked = style.allFrames;
     $("deleteButton").disabled = !styles.some(s => s.id === style.id);
     $("formError").textContent = "";
-    activateTab(PPS.hasJavaScript(style) && !style.css ? "js" : "css");
+    activateTab(codeTab); activateJsTiming(timing);
     renderList(); renderScriptStatus(); updatePermission().catch(report);
   }
   function renderScriptStatus() {
@@ -191,7 +208,20 @@
       activateTab(next); $(next + "Tab").focus();
     });
   }
-  for (const id of ["cssInput", ...Object.values(jsInputs)]) $(id).addEventListener("keydown", event => {
+  for (const runAt of PPS.RUN_ATS) {
+    const tab = $(jsEditors[runAt] + "Tab");
+    tab.addEventListener("click", () => activateJsTiming(runAt));
+    tab.addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const index = PPS.RUN_ATS.indexOf(runAt);
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const next = event.key === "Home" ? PPS.RUN_ATS[0] : event.key === "End" ? PPS.RUN_ATS.at(-1)
+        : PPS.RUN_ATS[(index + step + PPS.RUN_ATS.length) % PPS.RUN_ATS.length];
+      activateJsTiming(next); $(jsEditors[next] + "Tab").focus();
+    });
+  }
+  for (const id of ["cssInput", ...Object.values(jsEditors).map(id => id + "Input")]) $(id).addEventListener("keydown", event => {
     if (event.key !== "Tab" || event.shiftKey) return;
     event.preventDefault(); const editor = event.target;
     editor.setRangeText("  ", editor.selectionStart, editor.selectionEnd, "end"); markDirty();

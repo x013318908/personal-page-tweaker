@@ -121,14 +121,17 @@ class CDP {
     // Exercise the real form, including its Save gesture and URL permissions.
     await cdp.eval(options, `(() => {
       document.getElementById('newButton').click();
+      document.getElementById('jsTab').click();
       const values = {nameInput:'見出しと動作をカスタマイズ',hostInput:'127.0.0.1',patternInput:'http://127.0.0.1/*',excludeInput:'http://127.0.0.1/excluded*',cssInput:'h1 { background: rgb(10, 20, 30); }',
         jsStartInput:'globalThis.ppsOrder = ["start"]; globalThis.ppsStartReady = document.readyState;',
         jsEndInput:'(globalThis.ppsOrder ||= []).push("end"); document.body.dataset.endReady = document.readyState;',
         jsIdleInput:'(globalThis.ppsOrder ||= []).push("idle"); document.body.dataset.ppsOrder = globalThis.ppsOrder.join(","); document.body.dataset.startReady = globalThis.ppsStartReady; document.body.dataset.ppsRuns = String(Number(document.body.dataset.ppsRuns || 0) + 1); document.body.dataset.isolation = typeof window.pageValue;'};
-      for(const [id,value] of Object.entries(values)){const el=document.getElementById(id);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));}
+      for(const [id,value] of Object.entries(values)){if(id.startsWith('js')) document.getElementById(id.replace('Input','Tab')).click();const el=document.getElementById(id);el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));}
       document.getElementById('editorForm').requestSubmit();
     })()`);
     await cdp.wait(options, `document.getElementById('saveStatus').textContent.includes('保存しました')`);
+    assert.equal(await cdp.eval(options, `document.getElementById('jsTab').getAttribute('aria-selected')`), 'true', 'Save keeps the JavaScript editor open');
+    assert.equal(await cdp.eval(options, `document.getElementById('jsIdleTab').getAttribute('aria-selected')`), 'true');
     const response = await cdp.eval(options, 'PPS.sync()');
     assert.deepEqual(response.errors, []);
     await cdp.wait(target, `getComputedStyle(document.querySelector('h1')).backgroundColor === 'rgb(10, 20, 30)'`);
@@ -142,7 +145,7 @@ class CDP {
     assert.equal(await cdp.eval(target, `document.querySelector('iframe').contentDocument.body.dataset.ppsRuns`), undefined);
     console.log('PASS: real form saves all three timings; CSS refreshes live; JS runs once in timing order in a shared isolated world, top frame only');
 
-    const rule = await cdp.eval(options, `(async()=> (await PPS.getStyles()).find(s=>s.id!=='legacy-css'))()`);
+    let rule = await cdp.eval(options, `(async()=> (await PPS.getStyles()).find(s=>s.id!=='legacy-css'))()`);
     assert.equal('js' in rule, false);
     assert.equal('runAt' in rule, false);
     assert.deepEqual(Object.keys(rule.jsByRunAt), ['document_start', 'document_end', 'document_idle']);
@@ -151,8 +154,41 @@ class CDP {
     await cdp.eval(options, `Array.from(document.querySelectorAll('.style-item')).find(el=>el.querySelector('.style-item-title').textContent===${JSON.stringify(rule.name)}).click()`);
     assert.deepEqual(await cdp.eval(options, `['jsStartInput','jsEndInput','jsIdleInput'].map(id=>document.getElementById(id).value)`), Object.values(rule.jsByRunAt));
     await cdp.eval(options, `document.getElementById('jsTab').click()`);
-    await cdp.call('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1800, deviceScaleFactor: 1, mobile: false }, options);
-    const shot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, options);
+    const statusBeforeSwitch = await cdp.eval(options, `document.getElementById('saveStatus').textContent`);
+    for (const id of ['jsStart', 'jsEnd', 'jsIdle']) {
+      await cdp.eval(options, `document.getElementById('${id}Tab').click()`);
+      assert.deepEqual(await cdp.eval(options, `Array.from(document.querySelectorAll('.js-editors textarea')).filter(el=>el.getClientRects().length).map(el=>el.id)`), [id + 'Input']);
+    }
+    assert.equal(await cdp.eval(options, `document.getElementById('saveStatus').textContent`), statusBeforeSwitch, 'Switching alone does not mark the setting as edited');
+
+    // Drafts survive timing switches and CSS/JS switches before a single save.
+    const drafts = Object.fromEntries(Object.entries(rule.jsByRunAt).map(([timing, code]) => [timing, code + '\n// Unsaved draft: ' + timing]));
+    await cdp.eval(options, `(() => {
+      const values=${JSON.stringify(Object.values(drafts))};
+      ['jsStart','jsEnd','jsIdle'].forEach((id,index)=>{document.getElementById(id+'Tab').click();const input=document.getElementById(id+'Input');input.value=values[index];input.dispatchEvent(new Event('input',{bubbles:true}));});
+      document.getElementById('cssTab').click();document.getElementById('jsTab').click();
+      document.getElementById('jsStartTab').click();document.getElementById('jsStartTab').focus();
+    })()`);
+    for (const [key, expected] of [['ArrowRight','jsEnd'], ['End','jsIdle'], ['ArrowRight','jsStart'], ['ArrowLeft','jsIdle'], ['Home','jsStart']]) {
+      await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key }, options);
+      await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key }, options);
+      assert.equal(await cdp.eval(options, 'document.activeElement.id'), expected + 'Tab');
+      assert.deepEqual(await cdp.eval(options, `Array.from(document.querySelectorAll('.js-editors textarea')).filter(el=>el.getClientRects().length).map(el=>el.id)`), [expected + 'Input']);
+    }
+    assert.deepEqual(await cdp.eval(options, `['jsStartInput','jsEndInput','jsIdleInput'].map(id=>document.getElementById(id).value)`), Object.values(drafts));
+    assert.deepEqual(await cdp.eval(options, `(async()=> (await PPS.getStyles()).find(s=>s.id===${JSON.stringify(rule.id)}).jsByRunAt)()`), rule.jsByRunAt, 'Switches keep drafts unsaved');
+    await cdp.eval(options, `document.getElementById('jsEndTab').click();document.getElementById('editorForm').requestSubmit()`);
+    await cdp.wait(options, `document.getElementById('saveStatus').textContent.includes('保存しました')`);
+    rule = await cdp.eval(options, `(async()=> (await PPS.getStyles()).find(s=>s.id===${JSON.stringify(rule.id)}))()`);
+    assert.deepEqual(rule.jsByRunAt, drafts, 'Save includes the hidden timing editors');
+    assert.equal(await cdp.eval(options, `document.getElementById('jsEndTab').getAttribute('aria-selected')`), 'true', 'Save retains the selected timing');
+    assert.equal((await cdp.eval(options, 'chrome.userScripts.getScripts()')).length, 3);
+    console.log('PASS: timing tabs retain unsaved drafts, support keyboard navigation, and save every timing while retaining the selected editor');
+
+    await cdp.eval(options, 'document.activeElement.blur()');
+    await cdp.call('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false }, options);
+    const { cssContentSize } = await cdp.call('Page.getLayoutMetrics', {}, options);
+    const shot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: cssContentSize.width, height: cssContentSize.height, scale: 1 } }, options);
     fs.writeFileSync(path.join(root, '..', 'options-preview.png'), Buffer.from(shot.data, 'base64'));
 
     // Saving CSS alone must not execute the script again.
@@ -161,8 +197,9 @@ class CDP {
     assert.equal(await cdp.eval(target, 'document.body.dataset.ppsRuns'), '1');
 
     // Emptying a timing removes just that registration and preserves the others.
-    await cdp.eval(options, `(() => { const e=document.getElementById('jsStartInput');e.value='';e.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('editorForm').requestSubmit();})()`);
+    await cdp.eval(options, `(() => { document.getElementById('jsStartTab').click();const e=document.getElementById('jsStartInput');e.value='';e.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('editorForm').requestSubmit();})()`);
     await cdp.wait(options, `document.getElementById('saveStatus').textContent.includes('保存しました')`);
+    assert.equal(await cdp.eval(options, `document.getElementById('jsStartTab').getAttribute('aria-selected')`), 'true', 'Clearing code keeps that timing selected');
     assert.deepEqual((await cdp.eval(options, 'chrome.userScripts.getScripts()')).map(s=>s.runAt).sort(), ['document_end', 'document_idle']);
     await cdp.call('Page.reload', {}, target);
     await cdp.wait(target, `document.body?.dataset.ppsOrder === 'end,idle'`);
