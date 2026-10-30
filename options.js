@@ -10,7 +10,16 @@
   const report = error => { $("formError").textContent = error.message; setStatus("操作を完了できませんでした。", "danger"); };
   const guarded = fn => (...args) => Promise.resolve().then(() => fn(...args)).catch(report);
   const canLeave = () => !dirty || confirm("未保存の変更を破棄しますか？");
-  function markDirty() { dirty = true; $("formError").textContent = ""; setStatus("未保存の変更があります。"); }
+  function updateJsContentMarkers() {
+    for (const runAt of PPS.RUN_ATS) {
+      const id = jsEditors[runAt], tab = $(id + "Tab");
+      const hasContent = Boolean($(id + "Input").value.trim());
+      tab.classList.toggle("has-content", hasContent);
+      tab.title = `${PPS.RUN_AT_LABELS[runAt]}（${hasContent ? "内容あり" : "空欄"}）`;
+      tab.setAttribute("aria-label", tab.title);
+    }
+  }
+  function markDirty() { dirty = true; $("formError").textContent = ""; setStatus("未保存の変更があります。"); updateJsContentMarkers(); }
   function activateTab(kind) {
     for (const name of ["css", "js"]) {
       const active = name === kind;
@@ -54,6 +63,7 @@
     $("excludeInput").value = style.excludeMatches.join("\n");
     $("cssInput").value = style.css;
     for (const runAt of PPS.RUN_ATS) $(jsEditors[runAt] + "Input").value = style.jsByRunAt[runAt];
+    updateJsContentMarkers();
     $("cssEnabledInput").checked = style.cssEnabled; $("jsEnabledInput").checked = style.jsEnabled;
     $("worldInput").value = style.world;
     $("allFramesInput").checked = style.allFrames;
