@@ -1,10 +1,16 @@
-# Personal Page Tweaker 0.3.2
+# Personal Page Tweaker 1.0.0
 
 自分用のCSSとJavaScriptを、サイトごとに保存・実行するChrome拡張です。JavaScriptは3つの実行タイミングにそれぞれコードを保存でき、すべて同時に有効にできます。Chrome 138以降に対応します。
 
-広告、アクセス解析、更新時にページを開く処理、外部からの自動更新・コード取得はありません。設定はブラウザー内の `chrome.storage.local` に保存します。ユーザーが登録したコード自身の通信は、そのコードの内容に従います。
+広告、アクセス解析、更新時にページを開く処理はありません。登録スクリプトを外部から自動取得・自動更新しません。設定はブラウザー内の `chrome.storage.local` に保存します。ユーザーが登録したコード自身の通信は、そのコードの内容に従います。
 
-## 既存バージョンから更新
+Chrome Web Store向けのファイルは [公開手順](docs/publishing.md) にまとめています。掲載文は [ストア原稿](docs/store-listing.md)、初回公開版の変更点は [リリースノート](docs/release-notes-v1.0.0.md) を参照してください。
+
+## 既存の開発版から更新
+
+**開発版からChrome Web Store版への移行は、別の拡張への移行になります。** 旧拡張でExport → 新しいストア版でImportし、サイト権限を許可し直してください。移行後は旧拡張を停止し、対象ページを再読み込みします。
+
+同じ開発版のフォルダーを上書き更新する場合は、次の手順です。
 
 1. 現在の拡張の **Export** で設定をバックアップします。
 2. このフォルダーのファイルを、従来読み込んでいた `personal-page-styler` フォルダーに上書きコピーします。フォルダーの場所を変えず、拡張を削除せずに更新します。
@@ -18,7 +24,7 @@ v1/v2のExportファイルもImportできます。0.3.0以降のExportは、タ�
 
 **別の場所から読み込むと、Chromeは別の拡張として扱います。** その場合は旧拡張でExport → 新拡張でImportし、サイト権限を許可し直してください。同時適用を避けるため、移行後は旧拡張を停止します。
 
-## 新規導入
+## 開発版・ZIPから導入
 
 1. ZIPを展開します。
 2. `chrome://extensions/` を開き、右上の **デベロッパー モード** をオンにします。
@@ -95,7 +101,7 @@ copy(JSON.stringify((await chrome.storage.local.get('personalPageStyler.beforeIm
 
 ## 構成・テスト
 
-Manifest V3。依存パッケージ・ビルド工程は不要です。CSSは付属のcontent script、ユーザーJavaScriptはChromeの `userScripts` APIで実行します。ユーザーJavaScriptに拡張のストレージやメッセージAPIを公開しません。
+Manifest V3。拡張の実行に依存パッケージ・ビルド工程は不要です。CSSは付属のcontent script、ユーザーJavaScriptはChromeの `userScripts` APIで実行します。ユーザーJavaScriptに拡張のストレージやメッセージAPIを公開しません。設定画面の言語は日本語です。
 
 ```powershell
 node --test tests/*.test.cjs
@@ -106,6 +112,20 @@ node tests/browser-smoke.cjs
 
 自動テストは、旧CSS・単一JavaScriptデータの引き継ぎ、v3バックアップ、タイミング別コードの検証、URL条件、UserScriptヘッダー、スクリプト登録の更新と削除を確認します。ブラウザーテストは、タイミングの切り替えと未保存コードの保持、キーボード操作、選択中のタブを保ったまま全タイミングの保存・再表示、各タイミングでの一度だけの実行、1欄だけ空にしたときの停止、CSSの即時反映、除外URL、設定全体の停止、独立した環境／ページと同じ環境、フレーム、拡張再読み込み後の復元、サイト権限取り消しを確認します。
 
-2026-10-30、Linux上のChrome for Testing 151.0.7922.34で、自動テスト12件とブラウザーテストの通過を確認しています。
+ブラウザーテストでは、downloads権限を使わないExportと、実際に保存されたJSONのImportも確認します。`PPS_EXTENSION_ROOT` に提出用ZIPの展開先を指定すると、配布ファイルそのものを検証できます。
+
+2026-11-03、Linux / Chrome for Testing 151.0.7922.34で、自動テスト12件と1.0.0の提出用ZIPを展開したブラウザーテストの通過を確認しています。
+
+## 提出用ZIP
+
+Python 3.9以降の標準ライブラリだけで、検証済みの提出ファイルを作れます。
+
+```sh
+python scripts/package.py
+```
+
+`dist/personal-page-tweaker-1.0.0.zip` とSHA-256ファイルを出力します。ZIPには実行用ファイルとアイコンだけを含め、テスト・公開サイト・開発用ファイルは含めません。
+
+参考の [Read Later Is Broken](https://github.com/x013318908/Read-Later-Is-Broken) と同じく、紹介・プライバシー・権限説明は `docs/` をGitHub Pagesで公開する構成です。Pagesの有効化とストア入力欄の原稿は [公開手順](docs/publishing.md) に記載しています。アイコンやストア画像を再生成する場合は、`PPS_CHROMIUM` を設定して `node scripts/create-store-assets.cjs` を実行します。
 
 公式API資料: [Chrome userScripts API](https://developer.chrome.com/docs/extensions/reference/api/userScripts)

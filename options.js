@@ -156,8 +156,10 @@
   async function exportSettings() {
     const data = await PPS.getStyles();
     const url = URL.createObjectURL(new Blob([JSON.stringify(PPS.buildExportPayload(data), null, 2)], { type: "application/json" }));
-    try { await chrome.downloads.download({ url, filename: `personal-page-styler-${new Date().toISOString().slice(0, 10)}.json`, saveAs: true }); }
-    finally { setTimeout(() => URL.revokeObjectURL(url), 30000); }
+    const link = document.createElement("a");
+    link.href = url; link.download = `personal-page-tweaker-${new Date().toISOString().slice(0, 10)}.json`;
+    try { document.body.append(link); link.click(); }
+    finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
   }
   function hideImport() { $("importPreview").hidden = true; pendingImport = null; $("importButton").focus(); }
   async function importFile(file) {

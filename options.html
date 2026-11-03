@@ -136,6 +136,7 @@
               <label class="field"><span>実行環境</span><select id="worldInput"><option value="USER_SCRIPT">独立した環境（通常）</option><option value="MAIN">ページと同じ環境</option></select></label>
             </div>
             <p class="code-help">ページ内の変数や関数を使うときは「ページと同じ環境」を選びます。GM_addStyle / GM.addStyleに対応。その他のGM_*機能は未対応です。</p>
+            <p class="code-help">登録したJavaScriptは、対象ページの情報を読み取ったり、通信したりできます。内容を確認したコードを登録してください。</p>
             <p id="jsTimingHelp" class="code-help">編集するタイミングを切り替えます。各タブのコードは、それぞれのタイミングで1回ずつ実行します。実行しないタイミングは空欄にしてください。</p>
             <div class="js-timing-tabs" role="tablist" aria-label="JavaScriptの実行タイミング">
               <button id="jsStartTab" type="button" role="tab" aria-selected="false" aria-controls="jsStartPanel" tabindex="-1">読み込み開始時</button>
@@ -179,6 +180,7 @@
             </button>
           </footer>
         </form>
+        <p class="code-help"><a href="https://x013318908.github.io/personal-page-tweaker/privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a> · <a href="https://x013318908.github.io/personal-page-tweaker/permissions.html" target="_blank" rel="noreferrer">権限の説明</a> · <a href="https://github.com/x013318908/personal-page-tweaker/issues" target="_blank" rel="noreferrer">サポート</a></p>
       </section>
     </main>
 

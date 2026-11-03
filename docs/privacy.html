@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>プライバシーポリシー | Personal Page Tweaker</title>
+    <meta name="description" content="Personal Page Tweakerのローカル保存、URL照合、ユーザー提供コード、バックアップとデータ削除について。">
+    <link rel="icon" href="./assets/icons/icon-48.png">
+    <link rel="stylesheet" href="./assets/styles/pages.css">
+  </head>
+  <body>
+    <header class="site-header"><a class="brand" href="./"><img src="./assets/icons/icon-48.png" alt="">Personal Page Tweaker</a><nav aria-label="ナビゲーション"><a href="./">紹介</a><a href="./permissions.html">権限</a><a href="#english" lang="en">English</a></nav></header>
+    <main class="policy-page">
+      <section>
+        <p class="eyebrow">PRIVACY POLICY</p>
+        <h1>プライバシーポリシー</h1>
+        <p class="muted">最終更新: 2026年11月3日 · 対象: Personal Page Tweaker 1.0.0</p>
+        <p>Personal Page Tweakerは、ユーザーが用意したCSSとJavaScriptで、許可したサイトのページをカスタマイズするChrome拡張です。この目的に必要な情報を端末内で扱います。拡張本体から開発者のサーバーへデータを送信する処理はありません。</p>
+      </section>
+      <section>
+        <h2>扱う情報と目的</h2>
+        <ul>
+          <li><strong>ページのURL・ホスト名:</strong> 閲覧中のサイトをポップアップに表示し、対象URL・除外URLに合うかを端末内で照合します。閲覧履歴APIは使わず、閲覧履歴のログも保存しません。</li>
+          <li><strong>ページの内容:</strong> 許可されたページにCSSを適用し、登録されたJavaScriptで見た目や動作を変更します。JavaScriptが読み取る内容や行う処理は、ユーザーが登録したコードによって決まります。</li>
+          <li><strong>設定:</strong> 設定名、対象・除外URLの条件、CSS、JavaScript、有効状態、実行環境・タイミング・フレーム設定、作成・更新日時を保存します。</li>
+          <li><strong>ユーザーが選択したファイル:</strong> JSONバックアップと.user.jsを取り込む際に、そのファイルの内容を読み込みます。ファイルを自動探索したり、外部から自動取得したりはしません。</li>
+        </ul>
+      </section>
+      <section>
+        <h2>保存・バックアップ・削除</h2>
+        <p>設定はこのChromeプロファイルの <code>chrome.storage.local</code> に保存します。開発者のクラウドやChromeの同期ストレージには保存しません。Importで全設定を置き換える前には、直前の設定を復旧用に1世代分保存します。</p>
+        <p>Exportはユーザーの操作でJSONファイルを端末へ保存します。バックアップにはコードやURL条件が含まれます。ファイルを共有するかどうかはユーザーが決めます。</p>
+        <p>個々の設定は編集画面から削除できます。復旧用コピーを含むすべての拡張保存データは、拡張のストレージを消去するか拡張をアンインストールすることで削除できます。設定の削除だけでは以前のImport復旧用コピーは消えない場合があります。Export済みファイルは別に削除してください。</p>
+      </section>
+      <section>
+        <h2>ユーザー提供のJavaScript</h2>
+        <p>ユーザーが編集欄に入力したコード、または明示的に取り込んだファイル内のコードを <code>chrome.userScripts</code> APIで実行します。拡張機能の管理処理はすべて配布パッケージ内にあります。CDN、開発者サーバー、スクリプト配布URLなどから実行コードを自動で取得・更新しません。</p>
+        <p>登録したJavaScriptは、許可された対象ページの情報を読み取り、コードに従って外部サービスへ送信することがあります。送信先・内容はそのコードによって決まります。これは拡張本体による開発者への収集・送信とは別です。内容を確認したコードだけを登録してください。</p>
+        <p>独立した実行環境が通常の選択です。ユーザーが選ぶ「ページと同じ環境」では、ページのJavaScriptと同じ環境で動きます。ユーザースクリプト向けの拡張APIメッセージングは有効にしていません。</p>
+      </section>
+      <section>
+        <h2>共有・解析・Limited Use</h2>
+        <p>拡張本体には、広告、解析、操作履歴の追跡、データの販売、データブローカーへの提供、信用評価や融資への利用機能はありません。アカウント登録やログインもありません。ユーザーデータは、ページのカスタマイズと設定管理という単一目的だけに使います。</p>
+        <p>Google APIから受け取る情報の利用は、Limited Use要件を含むChrome Web Store User Data Policyに従います。</p>
+      </section>
+      <section>
+        <h2>このWebサイトと問い合わせ</h2>
+        <p>この公開サイトはGitHub Pagesで配信しています。ページの閲覧やGitHub Issuesの利用には<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHubのプライバシーに関する説明</a>も適用されます。拡張本体はこのサイトをバックグラウンドで読み込みません。</p>
+        <p>問い合わせは<a href="https://github.com/x013318908/personal-page-tweaker/issues">プロジェクトのIssues</a>、または<a href="mailto:x013318908@gmail.com">x013318908@gmail.com</a>へお願いします。問い合わせ時にユーザーが提供した情報は、その対応に使用します。公開Issuesには共有してよい内容だけを記載してください。</p>
+      </section>
+      <section id="english" lang="en">
+        <h2>Privacy Policy — English</h2>
+        <p>Last updated: November 3, 2026. Applies to Personal Page Tweaker 1.0.0.</p>
+        <p>Personal Page Tweaker customizes individually permitted websites using CSS and JavaScript supplied by the user. Bundled extension code sends no data to a developer-operated server.</p>
+        <h3>Information handled and purpose</h3>
+        <p>Current and permitted page URLs/hostnames are used locally to show the current site and match inclusion/exclusion rules. No browser-history API or browsing-history log is used. Permitted page content is modified by CSS and registered JavaScript. What a user script reads or does depends on that script.</p>
+        <p>Stored settings include rule names, URL patterns, exclusions, CSS, JavaScript, enabled states, execution world, timing and frame options, and creation/update timestamps. A JSON or .user.js file is read only when the user selects it for import.</p>
+        <h3>Storage, retention and deletion</h3>
+        <p>Settings stay in <code>chrome.storage.local</code> in the user's Chrome profile. They are not sent to developer cloud storage or Chrome sync storage. One previous settings collection is kept locally as a recovery copy before a full JSON import. Export creates a local JSON file containing settings and code when the user requests it.</p>
+        <p>Rules can be deleted individually. A prior import recovery copy may still contain deleted rules until replaced or cleared. Clear extension storage or uninstall the extension to remove all its stored data. Delete exported backup files separately.</p>
+        <h3>User-supplied code and network requests</h3>
+        <p>Only code explicitly entered or imported by the user is run with <code>chrome.userScripts</code>. All extension management logic is bundled. The extension does not automatically download or update executable code from URLs, CDNs or developer servers. User scripts may read permitted page information and make requests to destinations specified in their own code. This is distinct from the bundled extension's data handling. Users should review code before registering it.</p>
+        <p>The default is an isolated user-script world. Users can opt into the page's main world. User-script messaging to extension APIs is not enabled.</p>
+        <h3>Sharing and limited use</h3>
+        <p>The extension has no account/login, advertising, analytics, interaction tracking, data sale, data-broker sharing, credit-scoring or lending functions. Data is used only for page customization and settings management.</p>
+        <p>The use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy, including the Limited Use requirements.</p>
+        <h3>Website and contact</h3>
+        <p>This website is hosted by GitHub Pages. GitHub's privacy statement also applies to website visits and use of GitHub Issues. The extension does not load this site in the background. Contact <a href="https://github.com/x013318908/personal-page-tweaker/issues">project support</a> or <a href="mailto:x013318908@gmail.com">x013318908@gmail.com</a>. Information voluntarily provided in a support request is used to respond to that request.</p>
+      </section>
+    </main>
+    <footer class="site-footer"><a href="./">Home</a><a href="./permissions.html">Permission Justifications</a><a href="https://github.com/x013318908/personal-page-tweaker">GitHub</a></footer>
+  </body>
+</html>
