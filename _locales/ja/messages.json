@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "Personal Page Tweaker"
+  },
+  "extensionDescription": {
+    "message": "サイトごとにCSSとJavaScriptを保存し、ページの見た目や動作を自分仕様に調整。3つの実行タイミングとサイト別のアクセス許可に対応。"
+  }
+}

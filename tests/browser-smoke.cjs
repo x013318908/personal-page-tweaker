@@ -5,48 +5,16 @@ const os = require('node:os');
 const http = require('node:http');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
+const { CDP } = require('../scripts/lib/cdp.cjs');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(process.env.PPS_EXTENSION_ROOT || path.join(__dirname, '..'));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'pps-browser-test-'));
+const downloadPath = path.join(profile, 'downloads');
+fs.mkdirSync(downloadPath);
 const cache = path.join(process.env.LOCALAPPDATA || '', 'ms-playwright');
 const browserPath = process.env.PPS_CHROMIUM || (fs.existsSync(cache) ? fs.readdirSync(cache) : []).filter(x => /^chromium-\d+$/.test(x)).sort((a,b) => Number(b.split('-')[1]) - Number(a.split('-')[1])).map(x => path.join(cache, x, 'chrome-win64', 'chrome.exe')).find(fs.existsSync);
 if (!browserPath) throw new Error('Set PPS_CHROMIUM to a Chromium / Chrome for Testing binary.');
 
-class CDP {
-  constructor(ws) {
-    this.ws = ws; this.id = 0; this.pending = new Map();
-    ws.addEventListener('message', event => {
-      const data = JSON.parse(event.data), job = this.pending.get(data.id);
-      if (process.env.PPS_CDP_DEBUG) console.log('CDP receive', JSON.stringify(data).slice(0, 350));
-      if (job) { this.pending.delete(data.id); clearTimeout(job.timer); data.error ? job.reject(new Error(JSON.stringify(data.error))) : job.resolve(data.result); }
-    });
-    ws.addEventListener('close', event => console.log('CDP closed', event.code, event.reason));
-  }
-  call(method, params = {}, sessionId) {
-    return new Promise((resolve, reject) => {
-      const id = ++this.id;
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method + ' ' + (params.expression || '').slice(0, 180))); }, 15000);
-      this.pending.set(id, { resolve, reject, timer });
-      this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    });
-  }
-  async page(url = 'about:blank') {
-    const { targetId } = await this.call('Target.createTarget', { url });
-    const { sessionId } = await this.call('Target.attachToTarget', { targetId, flatten: true });
-    await this.call('Page.enable', {}, sessionId);
-    return sessionId;
-  }
-  async eval(sessionId, expression) {
-    const result = await this.call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, userGesture: true }, sessionId);
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
-    return result.result.value;
-  }
-  async wait(sessionId, expression) {
-    for (let i = 0; i < 100; i++) { if (await this.eval(sessionId, expression)) return; await delay(100); }
-    const page = await this.eval(sessionId, '({url:location.href,text:document.body?.innerText.slice(0,2000)})');
-    throw new Error('Timed out: ' + expression + '\nPage: ' + JSON.stringify(page));
-  }
-}
 
 (async () => {
   const server = http.createServer((req, res) => {
@@ -69,6 +37,7 @@ class CDP {
     await new Promise((resolve, reject) => { ws.addEventListener('open', resolve); ws.addEventListener('error', reject); });
     cdp = new CDP(ws);
     await cdp.call('Browser.getVersion');
+    await cdp.call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath });
     let extensionId;
     for (let i = 0; i < 100 && !extensionId; i++) {
       const { targetInfos } = await cdp.call('Target.getTargets');
@@ -149,6 +118,30 @@ class CDP {
     assert.equal('js' in rule, false);
     assert.equal('runAt' in rule, false);
     assert.deepEqual(Object.keys(rule.jsByRunAt), ['document_start', 'document_end', 'document_idle']);
+
+    // The actual downloaded backup remains importable without a downloads grant.
+    assert.equal(await cdp.eval(options, 'chrome.runtime.getManifest().permissions.includes("downloads")'), false);
+    await cdp.eval(options, `document.getElementById('exportButton').click()`);
+    let backupFile;
+    for (let i = 0; i < 100 && !backupFile; i++) {
+      backupFile = fs.readdirSync(downloadPath).find(name => name.endsWith('.json'));
+      if (!backupFile) await delay(100);
+    }
+    assert.ok(backupFile, 'Export creates a JSON file');
+    const backupPath = path.join(downloadPath, backupFile);
+    const backup = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+    assert.equal(backup.schemaVersion, 3);
+    assert.deepEqual(backup.styles.find(style => style.id === rule.id).jsByRunAt, rule.jsByRunAt);
+    const { root: documentRoot } = await cdp.call('DOM.getDocument', {}, options);
+    const { nodeId } = await cdp.call('DOM.querySelector', { nodeId: documentRoot.nodeId, selector: '#importInput' }, options);
+    await cdp.call('DOM.setFileInputFiles', { nodeId, files: [backupPath] }, options);
+    await cdp.wait(options, `!document.getElementById('importPreview').hidden`);
+    await cdp.eval(options, `document.getElementById('confirmImportButton').click()`);
+    await cdp.wait(options, `document.getElementById('saveStatus').textContent.includes('Importしました')`);
+    assert.deepEqual(await cdp.eval(options, `(async()=> (await PPS.getStyles()).find(s=>s.id===${JSON.stringify(rule.id)}).jsByRunAt)()`), rule.jsByRunAt);
+    assert.equal(await cdp.eval(target, 'document.body.dataset.ppsRuns'), '1', 'Import does not rerun code on the current page');
+    console.log('PASS: export and import round trip every timing without the downloads permission');
+
     await cdp.eval(options, 'location.reload()');
     await cdp.wait(options, 'document.documentElement?.dataset.ready === "true"');
     await cdp.eval(options, `Array.from(document.querySelectorAll('.style-item')).find(el=>el.querySelector('.style-item-title').textContent===${JSON.stringify(rule.name)}).click()`);

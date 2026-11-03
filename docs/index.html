@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Personal Page Tweaker — いつものページを、自分仕様に。</title>
+    <meta name="description" content="サイトごとのCSSとJavaScriptを、自分のブラウザー内で管理するChrome拡張。3つの実行タイミング、サイト別のアクセス許可、ローカルバックアップに対応。">
+    <link rel="icon" href="./assets/icons/icon-48.png">
+    <link rel="stylesheet" href="./assets/styles/pages.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./"><img src="./assets/icons/icon-48.png" alt="">Personal Page Tweaker</a>
+      <nav aria-label="ナビゲーション"><a href="#features">機能</a><a href="#screenshots">画面</a><a href="./privacy.html">プライバシー</a><a href="./permissions.html">権限</a></nav>
+    </header>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">CSS + JAVASCRIPT · CHROME 138+</p>
+        <h1>いつものページを、<br>自分仕様に。</h1>
+        <p class="lead">文字を読みやすく、余白を広く。少しのCSSやJavaScriptをサイトごとに保存して、自分のブラウザーの中でページを整える拡張です。</p>
+        <div class="actions"><a class="button primary" href="https://github.com/x013318908/personal-page-tweaker#readme">入手方法・使い方</a><a class="button" href="./privacy.html">プライバシーについて</a></div>
+        <img class="hero-image" src="./assets/screenshots/01-css.png" alt="CSSの編集画面と、登録したCSSを反映したサンプルページ" width="1280" height="800">
+      </section>
+      <section class="section" id="features">
+        <h2>使うサイトだけに、使うコードだけ。</h2>
+        <div class="grid">
+          <article class="card"><h3>CSSはその場で反映</h3><p>保存・停止・削除を開いているページにも反映。文字、配色、レイアウトを調整できます。</p></article>
+          <article class="card"><h3>JavaScriptは3つのタイミング</h3><p>読み込み開始時・DOM構築後・読み込み後に、別々のコードを登録。切り替え式の広い編集欄で管理できます。</p></article>
+          <article class="card"><h3>アクセス許可はサイトごとに</h3><p>対象URLと除外URLを設定し、必要なサイトへのアクセスを許可。CSS・JavaScript・設定全体をそれぞれ切り替えられます。</p></article>
+          <article class="card"><h3>設定はブラウザーの中に</h3><p>設定名、URL条件、CSS、JavaScriptをローカル保存。JSONのExport/Importと、ローカルの.user.js取り込みに対応します。</p></article>
+        </div>
+      </section>
+      <section class="section gallery" id="screenshots">
+        <h2>書く場所を切り替えて、まとめて保存。</h2>
+        <div class="grid">
+          <figure><img src="./assets/screenshots/02-javascript.png" alt="実行タイミング別のJavaScript編集タブ" width="1280" height="800" loading="lazy"><figcaption>3つのタイミングのコードはすべて実行対象です。内容のあるタブに小さな印が付きます。</figcaption></figure>
+          <figure><img src="./assets/screenshots/03-site-controls.png" alt="サイト別設定を表示した拡張ポップアップとカスタマイズしたページ" width="1280" height="800" loading="lazy"><figcaption>ポップアップから設定を開き、有効・停止やページの再読み込みを操作できます。</figcaption></figure>
+        </div>
+      </section>
+      <section class="section">
+        <h2>はじめる前に</h2>
+        <p>JavaScriptを使う場合は <code>chrome://extensions/</code> でこの拡張の「詳細」→「ユーザースクリプトを許可する」をオンにしてください。CSSだけの場合、この設定は不要です。</p>
+        <p class="note">登録したJavaScriptは対象ページの情報を読み取ったり、コードに従って通信したりできます。内容を確認したコードを登録してください。JavaScriptの変更は対象ページの次の読み込みから反映します。</p>
+        <p>Chrome内部ページやChrome Web Storeなどでは実行できません。Tampermonkey / Greasemonkeyとの完全互換ではありません。</p>
+      </section>
+      <section class="section" lang="en">
+        <h2>Make familiar pages your own.</h2>
+        <p>Personal Page Tweaker stores your own CSS and JavaScript for individually permitted websites. It supports three execution timings, local backup/restore, and light/dark appearance. The settings interface is in Japanese.</p>
+        <p>Page URLs are matched locally, and your code changes the permitted page's content or appearance. The developer receives no data. User-supplied scripts may read page information and communicate as written. Read the <a href="./privacy.html#english">privacy policy</a> and <a href="./permissions.html">permission explanations</a> for details.</p>
+      </section>
+    </main>
+    <footer class="site-footer"><span>Personal Page Tweaker · x013318908</span><a href="./privacy.html">Privacy</a><a href="./permissions.html">Permissions</a><a href="https://github.com/x013318908/personal-page-tweaker/issues">Support</a><a href="https://github.com/x013318908/personal-page-tweaker">GitHub</a></footer>
+  </body>
+</html>

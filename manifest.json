@@ -1,12 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "Personal Page Tweaker",
-  "description": "Apply your own CSS and JavaScript to individually permitted sites. No ads or update tabs.",
-  "version": "0.3.2",
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "1.0.0",
+  "default_locale": "ja",
   "minimum_chrome_version": "138",
+  "homepage_url": "https://x013318908.github.io/personal-page-tweaker/",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": [
     "activeTab",
-    "downloads",
     "scripting",
     "storage",
     "userScripts"
@@ -19,8 +26,15 @@
     "service_worker": "background.js"
   },
   "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
     "default_popup": "popup.html",
-    "default_title": "Personal Page Tweaker"
+    "default_title": "__MSG_extensionName__"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  }
 }
