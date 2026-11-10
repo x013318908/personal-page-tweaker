@@ -1,4 +1,4 @@
-# Chrome Web Store 掲載原稿 — 1.0.0
+# Chrome Web Store 掲載原稿 — 1.1.0
 
 メインの掲載言語は日本語。設定画面も日本語です。末尾の英語原稿は、英語の掲載説明を追加するときに使えます。
 
@@ -23,11 +23,12 @@ Personal Page Tweaker は、自分で用意したCSSとJavaScriptをサイトご
 ・広い編集欄とタイミング切り替え、内容のあるタブの小さな印
 ・対象URL、除外URL、埋め込みフレームの指定
 ・CSSとJavaScriptの個別の有効／無効、設定全体の切り替え
+・サイト別のアクセス許可と、任意の全HTTP/HTTPSサイト一括許可
 ・独立した実行環境と、ページと同じ実行環境の選択
 ・ローカルの .user.js の取り込みとJSONバックアップ
 ・ブラウザーの明暗設定に対応
 
-サイトへのアクセスは、設定したサイトごとに許可します。対象ページのURLを端末内で照合し、許可されたページの内容・見た目・動作を登録済みのコードで変更します。対象URLの条件、CSS、JavaScript、設定名はこのブラウザー内に保存します。開発者への送信、広告、利用状況の解析、コードの自動取得・自動更新はありません。
+サイトへのアクセスは、初期状態ではサイトごとに許可します。任意で全HTTP/HTTPSサイトを一括許可することもできます。一括許可をオフにすると、以前の個別許可も解除され、サイトごとに許可し直せます。どちらの方式でも対象URL・除外URLを端末内で照合し、条件に合う許可済みページだけを登録コードで変更します。対象URLの条件、CSS、JavaScript、設定名はこのブラウザー内に保存します。開発者への送信、広告、利用状況の解析、コードの自動取得・自動更新はありません。
 
 JavaScriptは対象ページの情報を読み取ったり、コードに従って外部と通信したりできます。内容を確認したコードを登録してください。
 
@@ -42,7 +43,7 @@ JavaScriptは対象ページの情報を読み取ったり、コードに従っ�
 
 Make familiar pages your own.
 
-Personal Page Tweaker stores your own CSS and JavaScript for individually permitted websites. Adjust how pages look and behave, with separate scripts for document_start, document_end and document_idle.
+Personal Page Tweaker stores your own CSS and JavaScript for websites you permit. Adjust how pages look and behave, with separate scripts for document_start, document_end and document_idle.
 
 Features:
 • Per-site CSS and JavaScript settings
@@ -50,13 +51,14 @@ Features:
 • A spacious editor with timing tabs and small indicators for tabs containing code
 • URL matching, exclusions and optional frame support
 • Independent CSS, JavaScript and rule enable/disable controls
+• Per-site access by default, with optional all-HTTP/HTTPS-site permission
 • Isolated user-script worlds or the page's main world
 • Local .user.js import and JSON backup/restore
 • Light and dark appearance
 
 The settings interface is currently in Japanese. Chrome 138 or later is required. To use JavaScript, enable “Allow User Scripts” in this extension's details at chrome://extensions/. CSS works without this toggle.
 
-The extension matches page URLs locally and modifies permitted page content using your registered code. Rules, URL patterns and code stay in Chrome local storage. The developer receives no data. There are no ads, analytics, automatic code downloads or script updates. User-supplied JavaScript can read page information and make network requests as written; only register code you have reviewed.
+Site access is granted individually by default. You can opt into all HTTP/HTTPS sites through Chrome's permission prompt. Turning this off also removes earlier individual grants; sites can be permitted individually again. Either way, the extension matches page URLs locally and runs your code only within each rule's URL/exclusion/frame conditions. Rules, URL patterns and code stay in Chrome local storage. The developer receives no data. There are no ads, analytics, automatic code downloads or script updates. User-supplied JavaScript can read page information and make network requests as written; only register code you have reviewed.
 
 JavaScript changes take effect on the next page load. Saving does not rerun a script in the current document. Effects of previously executed code remain until reload. Chrome-restricted pages are unsupported. This is not a fully compatible Tampermonkey/Greasemonkey replacement; GM_addStyle and GM.addStyle are supported.
 

@@ -434,6 +434,12 @@ h3 {
 [hidden] { display: none !important; }
 .sidebar-note, .code-help { color: var(--muted); font-size: 12px; line-height: 1.7; }
 .sidebar-note { margin-top: auto; padding-top: 18px; }
+.access-settings { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-subtle); }
+.access-settings .check-field { align-items: flex-start; margin-top: 12px; line-height: 1.6; }
+.access-settings .check-field input { flex-shrink: 0; margin-top: 3px; }
+.access-settings p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.access-settings .access-status.is-warning { color: var(--warning); }
+.access-mode { margin-left: 6px; font-size: 11px; color: var(--muted); }
 .code-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
 .code-tabs button { padding: 11px 22px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-weight: 700; }
 .code-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }

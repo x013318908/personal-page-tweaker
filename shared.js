@@ -2,6 +2,7 @@
   "use strict";
   const APP_ID = "personal-page-styler";
   const SCHEMA_VERSION = 3;
+  const ALL_SITE_ORIGINS = Object.freeze(["http://*/*", "https://*/*"]);
   const RUN_ATS = Object.freeze(["document_start", "document_end", "document_idle"]);
   const RUN_AT_LABELS = Object.freeze({ document_start: "読み込み開始時", document_end: "DOM構築後", document_idle: "読み込み後" });
   // Keep the v1 key so an in-place upgrade retains existing CSS.
@@ -181,7 +182,7 @@
     });
   }
 
-  global.PPS = { APP_ID, SCHEMA_VERSION, RUN_ATS, RUN_AT_LABELS, STORAGE_KEY, CONTENT_STYLE_ID, CONTENT_SCRIPT_PREFIX, USER_SCRIPT_PREFIX,
+  global.PPS = { APP_ID, SCHEMA_VERSION, ALL_SITE_ORIGINS, RUN_ATS, RUN_AT_LABELS, STORAGE_KEY, CONTENT_STYLE_ID, CONTENT_SCRIPT_PREFIX, USER_SCRIPT_PREFIX,
     MESSAGE_REFRESH, MESSAGE_SYNC, MESSAGE_CSS, MESSAGE_MUTATE, nowIso, makeId, lines, normalizeHost, isHttpUrl,
     getHostFromUrl, parseMatchPattern, isValidMatchPattern, makeMatchPatternFromUrl, makeMatchPatternFromHost,
     originPattern, matchPatternForUrl, patternsForStyle, matchesStyle, styleMatchesUrl, normalizeStyle, makeBlankStyle,

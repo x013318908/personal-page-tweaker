@@ -6,6 +6,7 @@
   let styles = [], draft = PPS.makeBlankStyle(), dirty = false, busy = false, pendingImport = null;
   let status = { userScriptsAvailable: false, errors: [], missingPermissions: [] };
   let permissions = new Map(), permissionVersion = 0;
+  let permissionListVersion = 0, permissionViewsVersion = 0, allSitesVersion = 0, allSitesBusy = false;
   const setStatus = (message, tone = "muted") => { $("saveStatus").textContent = message; $("saveStatus").style.color = `var(--${tone})`; };
   const report = error => { $("formError").textContent = error.message; setStatus("操作を完了できませんでした。", "danger"); };
   const guarded = fn => (...args) => Promise.resolve().then(() => fn(...args)).catch(report);
@@ -92,7 +93,52 @@
     $("permissionButton").disabled = allowed;
   }
   async function refreshPermissions() {
-    permissions = new Map(await Promise.all(styles.map(async s => [s.id, await PPS.permissionContains(PPS.patternsForStyle(s))])));
+    const version = ++permissionListVersion;
+    const entries = await Promise.all(styles.map(async s => [s.id, await PPS.permissionContains(PPS.patternsForStyle(s))]));
+    if (version === permissionListVersion) permissions = new Map(entries);
+  }
+  async function updateAllSitesPermission() {
+    const version = ++allSitesVersion;
+    const grants = await Promise.all(PPS.ALL_SITE_ORIGINS.map(origin => PPS.permissionContains(origin)));
+    if (version !== allSitesVersion) return;
+    const allowed = grants.every(Boolean), partial = !allowed && grants.some(Boolean);
+    $("allSitesInput").checked = allowed;
+    $("allSitesInput").indeterminate = partial;
+    $("allSitesInput").disabled = allSitesBusy;
+    $("allSitesMode").textContent = allowed ? "全サイト許可" : partial ? "一部一括許可" : "サイトごと";
+    $("allSitesStatus").className = "access-status";
+    $("allSitesStatus").textContent = allowed ? "全HTTP/HTTPSサイトへのアクセスを許可しています。"
+      : partial ? "HTTPまたはHTTPSの一方を一括許可しています。" : "必要なサイトごとにアクセスを許可します。";
+    $("allSitesRevokeHint").hidden = !allowed && !partial;
+  }
+  async function refreshPermissionViews() {
+    const version = ++permissionViewsVersion, nextStatus = await PPS.sync();
+    if (version !== permissionViewsVersion) return;
+    await refreshPermissions();
+    if (version !== permissionViewsVersion) return;
+    status = nextStatus;
+    await Promise.all([updatePermission(), updateAllSitesPermission()]);
+    if (version === permissionViewsVersion) { renderList(); renderScriptStatus(); }
+  }
+  async function changeAllSitesPermission() {
+    if (allSitesBusy) return;
+    const enable = $("allSitesInput").checked;
+    allSitesBusy = true; $("allSitesInput").disabled = true;
+    $("allSitesStatus").className = "access-status";
+    $("allSitesStatus").textContent = enable ? "Chromeでアクセス許可を確認しています。" : "一括許可を解除しています。";
+    let problem = "";
+    try {
+      // Request synchronously from the checkbox gesture, before any other await.
+      const changed = await (enable ? PPS.permissionRequest(PPS.ALL_SITE_ORIGINS)
+        : chrome.permissions.remove({ origins: PPS.ALL_SITE_ORIGINS }));
+      await refreshPermissionViews();
+      if (!changed) problem = enable ? "一括許可はされませんでした。サイトごとの許可を引き続き利用できます。" : "一括許可を解除できませんでした。";
+    } catch (error) { problem = `アクセス許可を変更できませんでした: ${error.message}`; }
+    finally {
+      allSitesBusy = false;
+      await updateAllSitesPermission();
+      if (problem) { $("allSitesStatus").textContent = problem; $("allSitesStatus").classList.add("is-warning"); }
+    }
   }
   function renderList() {
     $("styleList").replaceChildren();
@@ -198,10 +244,14 @@
   $("buildPatternButton").addEventListener("click", guarded(buildPattern));
   $("permissionButton").addEventListener("click", () => {
     PPS.permissionRequest(PPS.lines($("patternInput").value)).then(async granted => {
-      status = await PPS.sync(); await refreshPermissions(); await updatePermission(); renderList(); renderScriptStatus();
+      await refreshPermissionViews();
       if (!granted) setStatus("権限は許可されませんでした。", "warning");
     }).catch(report);
   });
+  $("allSitesInput").addEventListener("change", () => { changeAllSitesPermission().catch(report); });
+  const permissionChanged = () => { refreshPermissionViews().catch(report); };
+  chrome.permissions.onAdded.addListener(permissionChanged);
+  chrome.permissions.onRemoved.addListener(permissionChanged);
   $("editorForm").addEventListener("submit", event => { event.preventDefault(); save().catch(report); });
   $("deleteButton").addEventListener("click", guarded(remove));
   $("exportButton").addEventListener("click", guarded(exportSettings));
@@ -252,7 +302,7 @@
   });
   addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
   guarded(async () => {
-    styles = await PPS.getStyles(); status = await PPS.sync(); await refreshPermissions();
+    styles = await PPS.getStyles(); status = await PPS.sync(); await refreshPermissions(); await updateAllSitesPermission();
     const params = new URLSearchParams(location.search), source = params.get("sourceUrl");
     showDraft(source && PPS.isHttpUrl(source) ? PPS.makeStyleFromUrl(source) : styles.find(s => s.id === params.get("id")) || PPS.sortStyles(styles)[0] || PPS.makeBlankStyle());
     document.documentElement.dataset.ready = "true";
