@@ -56,6 +56,14 @@
           <input id="importInput" class="visually-hidden" type="file" accept="application/json,.json,.js">
         </div>
 
+        <details class="access-settings">
+          <summary>アクセス設定 <span id="allSitesMode" class="access-mode">確認中</span></summary>
+          <label class="check-field"><input id="allSitesInput" type="checkbox" aria-describedby="allSitesHelp allSitesRevokeHint" disabled>全サイトへのアクセスを許可する</label>
+          <p id="allSitesStatus" class="access-status" role="status">権限を確認しています。</p>
+          <p id="allSitesHelp">任意の設定です。オフのままでもサイトごとに許可できます。対象はHTTP/HTTPSサイトで、コードは登録したURL条件にだけ適用します。</p>
+          <p id="allSitesRevokeHint" hidden>一括許可を解除すると個別のサイト許可も解除されます。必要なサイトは、編集画面で再度許可してください。</p>
+        </details>
+
         <div id="styleList" class="style-list" aria-label="設定一覧"></div>
         <p class="sidebar-note">CSSとJavaScriptをまとめて管理。<br>Import: バックアップJSON / .user.js</p>
       </aside>

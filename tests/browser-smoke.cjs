@@ -54,6 +54,21 @@ if (!browserPath) throw new Error('Set PPS_CHROMIUM to a Chromium / Chrome for T
     console.log('Browser:', version.Browser, 'Extension:', extensionId);
     let options = await cdp.page(`chrome-extension://${extensionId}/options.html`);
     await cdp.wait(options, 'document.documentElement?.dataset.ready === "true"');
+    assert.equal(await cdp.eval(options, 'PPS.permissionContains(PPS.ALL_SITE_ORIGINS)'), false);
+    assert.deepEqual(await cdp.eval(options, `({checked:document.getElementById('allSitesInput').checked,disabled:document.getElementById('allSitesInput').disabled})`), { checked: false, disabled: false });
+    // Simulate cancelling Chrome's prompt without granting anything in the test profile.
+    await cdp.eval(options, `(() => {
+      globalThis.originalPermissionRequest = chrome.permissions.request;
+      chrome.permissions.request = async request => { globalThis.cancelledRequest = request; return false; };
+      document.querySelector('.access-settings').open = true;
+      document.getElementById('allSitesInput').click();
+    })()`);
+    await cdp.wait(options, `!document.getElementById('allSitesInput').disabled && document.getElementById('allSitesStatus').textContent.includes('されませんでした')`);
+    assert.deepEqual(await cdp.eval(options, 'cancelledRequest.origins'), ['http://*/*', 'https://*/*']);
+    assert.equal(await cdp.eval(options, `document.getElementById('allSitesInput').checked`), false);
+    assert.equal(await cdp.eval(options, 'PPS.permissionContains(PPS.ALL_SITE_ORIGINS)'), false);
+    await cdp.eval(options, 'chrome.permissions.request = originalPermissionRequest; delete globalThis.originalPermissionRequest');
+    console.log('PASS: all-site access starts off; cancelling leaves it off and preserves individual permission requests');
     const before = await cdp.eval(options, 'PPS.sync()');
     console.log('Initial status:', before);
     const settings = await cdp.page('chrome://extensions/?id=' + extensionId);
@@ -178,7 +193,7 @@ if (!browserPath) throw new Error('Set PPS_CHROMIUM to a Chromium / Chrome for T
     assert.equal((await cdp.eval(options, 'chrome.userScripts.getScripts()')).length, 3);
     console.log('PASS: timing tabs retain unsaved drafts, support keyboard navigation, and save every timing while retaining the selected editor');
 
-    await cdp.eval(options, 'document.activeElement.blur()');
+    await cdp.eval(options, "document.activeElement.blur();document.querySelector('.access-settings').open=true");
     await cdp.call('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false }, options);
     const { cssContentSize } = await cdp.call('Page.getLayoutMetrics', {}, options);
     const shot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: cssContentSize.width, height: cssContentSize.height, scale: 1 } }, options);
@@ -247,6 +262,83 @@ if (!browserPath) throw new Error('Set PPS_CHROMIUM to a Chromium / Chrome for T
     options = await cdp.page(`chrome-extension://${extensionId}/options.html`);
     await cdp.wait(options, 'document.documentElement?.dataset.ready === "true"');
 
+    // Preapprove only the disposable profile's Chrome prompt; the option itself
+    // must still request the actual optional permissions from its user gesture.
+    const preapproveAllSites = async () => {
+      for (const origin of ['http://*/*', 'https://*/*']) {
+        await cdp.eval(settings, `chrome.developerPrivate.addHostPermission(${JSON.stringify(extensionId)},${JSON.stringify(origin)})`);
+      }
+    };
+    await cdp.eval(options, `(() => {
+      const input=document.getElementById('nameInput');
+      globalThis.originalDraftName=input.value;input.value+=' 未保存';input.dispatchEvent(new Event('input',{bubbles:true}));
+    })()`);
+    await preapproveAllSites();
+    await cdp.eval(target, `document.body.dataset.pageValue='permission-change-kept'`);
+    await cdp.eval(options, `document.querySelector('.access-settings').open=true;document.getElementById('allSitesInput').click()`);
+    await cdp.wait(options, `document.getElementById('allSitesInput').checked && !document.getElementById('allSitesInput').disabled`);
+    assert.equal(await cdp.eval(options, 'PPS.permissionContains(PPS.ALL_SITE_ORIGINS)'), true);
+    assert.equal(await cdp.eval(options, `document.getElementById('nameInput').value`), await cdp.eval(options, `originalDraftName+' 未保存'`));
+    assert.ok((await cdp.eval(options, `document.getElementById('saveStatus').textContent`)).includes('未保存'));
+    assert.equal(await cdp.eval(target, 'document.body.dataset.pageValue'), 'permission-change-kept', 'Granting access does not rerun JavaScript');
+    assert.equal((await cdp.eval(options, 'chrome.userScripts.getScripts()')).length, 3);
+    await cdp.eval(options, `document.getElementById('nameInput').value=originalDraftName;document.getElementById('editorForm').requestSubmit()`);
+    await cdp.wait(options, `document.getElementById('saveStatus').textContent.includes('保存しました')`);
+    await cdp.eval(options, 'location.reload()');
+    await cdp.wait(options, 'document.documentElement?.dataset.ready === "true"');
+    assert.equal(await cdp.eval(options, `document.getElementById('allSitesInput').checked`), true, 'Chrome permissions persist independently of the settings page');
+
+    const other = await cdp.page(`http://localhost:${server.address().port}/unconfigured`);
+    await cdp.wait(other, 'document.readyState === "complete"');
+    assert.equal(await cdp.eval(other, 'document.body.dataset.ppsOrder'), undefined);
+    assert.equal(await cdp.eval(other, `getComputedStyle(document.querySelector('h1')).color`), 'rgb(0, 0, 0)', 'All-site permission does not apply unrelated rules');
+    await cdp.eval(options, `(() => {
+      document.getElementById('newButton').click();
+      const values={nameInput:'一括許可の確認',hostInput:'localhost',patternInput:'http://localhost/*',cssInput:'h1 { color: rgb(4, 5, 6); }',jsIdleInput:'document.body.dataset.optInRuns=String(Number(document.body.dataset.optInRuns||0)+1);'};
+      for(const [id,value] of Object.entries(values)){const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));}
+      document.getElementById('editorForm').requestSubmit();
+    })()`);
+    await cdp.wait(options, `document.getElementById('saveStatus').textContent.includes('保存しました')`);
+    const bulkRule = await cdp.eval(options, `(async()=> (await PPS.getStyles()).find(s=>s.site.host==='localhost'))()`);
+    await cdp.wait(other, `getComputedStyle(document.querySelector('h1')).color === 'rgb(4, 5, 6)'`);
+    assert.equal(await cdp.eval(other, 'document.body.dataset.optInRuns'), undefined);
+    await cdp.call('Page.reload', {}, other);
+    await cdp.wait(other, `document.body?.dataset.optInRuns === '1'`);
+    console.log('PASS: opt-in persists, preserves drafts, limits execution to rules, and saves new sites without another grant');
+
+    // Browser-side revocation must update every permission indicator without a reload.
+    await cdp.eval(options, 'chrome.permissions.remove({origins:PPS.ALL_SITE_ORIGINS})');
+    await cdp.wait(options, `!document.getElementById('allSitesInput').checked && !document.getElementById('permissionButton').disabled`);
+    await cdp.wait(other, `getComputedStyle(document.querySelector('h1')).color !== 'rgb(4, 5, 6)'`);
+    assert.equal((await cdp.eval(options, 'chrome.userScripts.getScripts()')).length, 0);
+    assert.equal(await cdp.eval(other, 'document.body.dataset.optInRuns'), '1');
+    await cdp.call('Page.reload', {}, other);
+    await cdp.wait(other, 'document.readyState === "complete"');
+    assert.equal(await cdp.eval(other, 'document.body.dataset.optInRuns'), undefined);
+
+    await cdp.eval(settings, `chrome.developerPrivate.addHostPermission(${JSON.stringify(extensionId)},'http://localhost/*')`);
+    await cdp.eval(options, `document.getElementById('permissionButton').click()`);
+    await cdp.wait(options, `document.getElementById('permissionButton').disabled`);
+    await cdp.wait(other, `getComputedStyle(document.querySelector('h1')).color === 'rgb(4, 5, 6)'`);
+    assert.equal(await cdp.eval(options, 'PPS.permissionContains(PPS.ALL_SITE_ORIGINS)'), false);
+    assert.equal(await cdp.eval(other, 'document.body.dataset.optInRuns'), undefined);
+    await cdp.call('Page.reload', {}, other);
+    await cdp.wait(other, `document.body?.dataset.optInRuns === '1'`);
+
+    await preapproveAllSites();
+    await cdp.eval(options, `document.getElementById('allSitesInput').click()`);
+    await cdp.wait(options, `document.getElementById('allSitesInput').checked && !document.getElementById('allSitesInput').disabled`);
+    await cdp.eval(options, `document.getElementById('allSitesInput').click()`);
+    await cdp.wait(options, `!document.getElementById('allSitesInput').checked && !document.getElementById('allSitesInput').disabled`);
+    assert.equal(await cdp.eval(options, `PPS.permissionContains('http://localhost/*')`), false, 'Removing broad access also removes individual grants in Chrome');
+    await cdp.wait(other, `getComputedStyle(document.querySelector('h1')).color !== 'rgb(4, 5, 6)'`);
+    console.log('PASS: browser revocation and opt-out remove access; the existing site button grants individual access again');
+
+    // Restore the original per-site fixture for the remaining permission checks.
+    await cdp.eval(options, `PPS.mutate('delete',{id:${JSON.stringify(bulkRule.id)}})`);
+    await cdp.eval(settings, `chrome.developerPrivate.addHostPermission(${JSON.stringify(extensionId)},'http://127.0.0.1/*')`);
+    await cdp.eval(options, `PPS.permissionRequest('http://127.0.0.1/*')`);
+    await cdp.eval(options, 'PPS.sync()');
     const unpermitted = await cdp.eval(options, `(async()=>{const s=PPS.makeStyleFromUrl('https://example.invalid/');s.jsByRunAt.document_idle='document.body.dataset.mustNotRun="1"';return PPS.mutate('save',{style:s});})()`);
     assert.ok(unpermitted.missingPermissions.length);
     assert.equal((await cdp.eval(options, 'chrome.userScripts.getScripts()')).length, 3);

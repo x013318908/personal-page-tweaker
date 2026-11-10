@@ -1,6 +1,6 @@
 # Chrome Web Store 公開手順
 
-公開準備版: **1.0.0**。既存の保存キー・設定ID・v3データ形式を引き継ぎます。
+公開準備版: **1.1.0**。既存の保存キー・設定ID・v3データ形式を引き継ぎます。一括サイト許可は任意で、初期状態では従来の個別許可を使います。
 
 ## 提出ファイルを作る
 
@@ -12,8 +12,8 @@ python scripts/package.py
 
 生成物:
 
-- `dist/personal-page-tweaker-1.0.0.zip`
-- `dist/personal-page-tweaker-1.0.0.zip.sha256`
+- `dist/personal-page-tweaker-1.1.0.zip`
+- `dist/personal-page-tweaker-1.1.0.zip.sha256`
 
 ZIP直下に `manifest.json` が入り、実行用のJS/HTML/CSS、アイコン、日本語のマニフェスト用メッセージだけを含みます。`.git`、テスト、公開用Webページ、画像生成用スクリプト、秘密鍵や環境設定は入りません。スクリプトは権限・ローカルリソース・画像サイズ・ZIP内の内容も検証します。
 
@@ -49,7 +49,7 @@ Read Later Is Brokenと同じく、GitHub Pagesは `main` ブランチの `docs/
 
 ### Remote code欄の英文
 
-Personal Page Tweaker is a user-script manager. Users explicitly enter JavaScript in the editor or select a local .user.js/backup file. Only this user-provided code is executed through chrome.userScripts on user-selected and individually permitted sites. The extension does not fetch executable code from URLs, CDNs or developer servers, use eval/new Function in extension contexts, or automatically install/update scripts. All extension logic is in the submitted package. User-script messaging to extension APIs is not enabled.
+Personal Page Tweaker is a user-script manager. Users explicitly enter JavaScript in the editor or select a local .user.js/backup file. Only this user-provided code is executed through chrome.userScripts on sites matching the user's rules and granted host access. Access is granted per site by default; users can explicitly opt into all HTTP/HTTPS sites. The extension does not fetch executable code from URLs, CDNs or developer servers, use eval/new Function in extension contexts, or automatically install/update scripts. All extension logic is in the submitted package. User-script messaging to extension APIs is not enabled.
 
 ### データ利用の申告
 
@@ -74,13 +74,15 @@ No account or login is required. The settings interface is in Japanese.
 5. The other timing tabs are independent editors. Their code is also saved and runs at its respective native document timing. A small dot indicates a non-empty editor.
 6. In the popup, turn the rule off. CSS is removed immediately. Reload the target page to clear effects of already executed JavaScript.
 7. Export creates a local JSON backup. Import displays a replacement preview. A local .user.js imports as a disabled draft; it is not automatically enabled.
+8. In settings, expand 「アクセス設定」. 「全サイトへのアクセスを許可する」 is off by default. It requests all HTTP/HTTPS host access only when checked, through Chrome's permission prompt. Cancelling keeps individual-site permission requests available. Once granted, new rules need no separate site prompt; execution still follows each rule's URL/exclusion/frame conditions.
+9. Unchecking that option removes all HTTP/HTTPS host grants, including earlier individual grants, as explained beside the control. CSS is removed; already executed JavaScript requires a page reload to clear its effects. Use a rule's 「権限を許可」 button to resume individual access. Chrome-side permission changes also update the open settings page. Host grants are not included in JSON backups.
 
 ## 提出する版を確認する
 
 ```sh
 node --test tests/*.test.cjs
 python scripts/package.py
-python -m zipfile -e dist/personal-page-tweaker-1.0.0.zip /path/to/unpacked-release
+python -m zipfile -e dist/personal-page-tweaker-1.1.0.zip /path/to/unpacked-release
 ```
 
 展開先を `PPS_EXTENSION_ROOT`、Chrome / Chrome for Testingの実行ファイルを `PPS_CHROMIUM` に指定して実行します。

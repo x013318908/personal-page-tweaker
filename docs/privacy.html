@@ -15,7 +15,7 @@
       <section>
         <p class="eyebrow">PRIVACY POLICY</p>
         <h1>プライバシーポリシー</h1>
-        <p class="muted">最終更新: 2026年11月3日 · 対象: Personal Page Tweaker 1.0.0</p>
+        <p class="muted">最終更新: 2026年11月10日 · 対象: Personal Page Tweaker 1.1.0</p>
         <p>Personal Page Tweakerは、ユーザーが用意したCSSとJavaScriptで、許可したサイトのページをカスタマイズするChrome拡張です。この目的に必要な情報を端末内で扱います。拡張本体から開発者のサーバーへデータを送信する処理はありません。</p>
       </section>
       <section>
@@ -26,6 +26,11 @@
           <li><strong>設定:</strong> 設定名、対象・除外URLの条件、CSS、JavaScript、有効状態、実行環境・タイミング・フレーム設定、作成・更新日時を保存します。</li>
           <li><strong>ユーザーが選択したファイル:</strong> JSONバックアップと.user.jsを取り込む際に、そのファイルの内容を読み込みます。ファイルを自動探索したり、外部から自動取得したりはしません。</li>
         </ul>
+      </section>
+      <section>
+        <h2>アクセス許可の選択</h2>
+        <p>初期状態ではサイトごとにアクセスを許可します。任意で設定画面から全HTTP/HTTPSサイトへのアクセスを一括許可できます。どちらの場合もコードは各設定の対象URL・除外URL・フレーム条件に従って適用し、一括許可によって閲覧履歴を収集・保存することはありません。</p>
+        <p>実際の許可はChromeが管理し、Export/Importには含めません。一括許可を解除すると以前の個別許可も解除されますが、各設定からサイトごとに許可し直せます。</p>
       </section>
       <section>
         <h2>保存・バックアップ・削除</h2>
@@ -51,11 +56,13 @@
       </section>
       <section id="english" lang="en">
         <h2>Privacy Policy — English</h2>
-        <p>Last updated: November 3, 2026. Applies to Personal Page Tweaker 1.0.0.</p>
-        <p>Personal Page Tweaker customizes individually permitted websites using CSS and JavaScript supplied by the user. Bundled extension code sends no data to a developer-operated server.</p>
+        <p>Last updated: November 10, 2026. Applies to Personal Page Tweaker 1.1.0.</p>
+        <p>Personal Page Tweaker customizes permitted websites using CSS and JavaScript supplied by the user. Bundled extension code sends no data to a developer-operated server.</p>
         <h3>Information handled and purpose</h3>
         <p>Current and permitted page URLs/hostnames are used locally to show the current site and match inclusion/exclusion rules. No browser-history API or browsing-history log is used. Permitted page content is modified by CSS and registered JavaScript. What a user script reads or does depends on that script.</p>
         <p>Stored settings include rule names, URL patterns, exclusions, CSS, JavaScript, enabled states, execution world, timing and frame options, and creation/update timestamps. A JSON or .user.js file is read only when the user selects it for import.</p>
+        <h3>Site access choice</h3>
+        <p>Access is granted per site by default. Users may explicitly opt into all HTTP/HTTPS sites in settings. In either mode, code follows each rule's URL patterns, exclusions and frame choice. Broad access does not add browsing-history collection or logs. Chrome manages actual grants; they are excluded from backups and cannot be granted by import. Turning broad access off also removes earlier individual grants; users can grant individual sites again.</p>
         <h3>Storage, retention and deletion</h3>
         <p>Settings stay in <code>chrome.storage.local</code> in the user's Chrome profile. They are not sent to developer cloud storage or Chrome sync storage. One previous settings collection is kept locally as a recovery copy before a full JSON import. Export creates a local JSON file containing settings and code when the user requests it.</p>
         <p>Rules can be deleted individually. A prior import recovery copy may still contain deleted rules until replaced or cleared. Clear extension storage or uninstall the extension to remove all its stored data. Delete exported backup files separately.</p>

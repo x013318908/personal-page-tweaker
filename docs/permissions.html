@@ -12,26 +12,27 @@
   <body>
     <header class="site-header"><a class="brand" href="./"><img src="./assets/icons/icon-48.png" alt="">Personal Page Tweaker</a><nav aria-label="Navigation"><a href="./">Home</a><a href="./privacy.html">Privacy</a><a href="#japanese" lang="ja">日本語</a></nav></header>
     <main class="policy-page">
-      <section><p class="eyebrow">CHROME WEB STORE REVIEW</p><h1>Permission Justifications</h1><p class="muted">Updated November 3, 2026 · Version 1.0.0</p></section>
+      <section><p class="eyebrow">CHROME WEB STORE REVIEW</p><h1>Permission Justifications</h1><p class="muted">Updated November 10, 2026 · Version 1.1.0</p></section>
       <section>
         <h2>Single purpose</h2>
-        <div class="copy-block"><p>Personal Page Tweaker lets users customize the appearance and behavior of individually permitted websites using their own per-site CSS and JavaScript rules.</p></div>
+        <div class="copy-block"><p>Personal Page Tweaker lets users customize the appearance and behavior of permitted websites using their own per-site CSS and JavaScript rules.</p></div>
       </section>
       <section>
         <h2>Required permissions</h2>
         <div class="copy-block"><h3><code>activeTab</code></h3><p>Read the active tab's URL after the user opens the extension popup, show the current site, and create a customization rule for that site. It does not grant persistent access to all websites.</p></div>
         <div class="copy-block"><h3><code>scripting</code></h3><p>Register and run bundled CSS helper content scripts on sites for which the user has granted optional host access. These helpers apply or remove saved CSS on open pages and update matching when a page URL changes. User-provided JavaScript is executed separately through chrome.userScripts.</p></div>
         <div class="copy-block"><h3><code>storage</code></h3><p>Store user-created rule names, match/exclusion patterns, CSS, JavaScript, enabled states, execution options and timestamps in chrome.storage.local. One local recovery copy is kept before a full JSON import. Storage is restricted to trusted extension contexts.</p></div>
-        <div class="copy-block"><h3><code>userScripts</code></h3><p>Register JavaScript explicitly entered or imported by the user for their selected, individually permitted websites. Each non-empty timing editor runs at document_start, document_end or document_idle. The default world is USER_SCRIPT; users may select MAIN. User-script messaging to extension APIs is not enabled. Chrome's Allow User Scripts toggle is required.</p></div>
+        <div class="copy-block"><h3><code>userScripts</code></h3><p>Register JavaScript explicitly entered or imported by the user for sites matching their rules and granted host access. Each non-empty timing editor runs at document_start, document_end or document_idle. The default world is USER_SCRIPT; users may select MAIN. User-script messaging to extension APIs is not enabled. Chrome's Allow User Scripts toggle is required.</p></div>
       </section>
       <section>
         <h2>Optional site access</h2>
-        <div class="copy-block"><h3><code>http://*/*</code> and <code>https://*/*</code></h3><p>The extension supports user-selected HTTP and HTTPS sites, so these patterns are declared as optional_host_permissions. Access is requested for the host patterns in the user's rule when they save/enable it or click the site-permission button. Declaring these optional patterns does not itself grant access to every site. Runtime matching also applies the user's path patterns, exclusions and frame choice.</p></div>
-        <p>A user may intentionally enter a wildcard rule covering many sites. It remains an explicit permission request for that user-selected scope. There are no required host_permissions.</p>
+        <div class="copy-block"><h3><code>http://*/*</code> and <code>https://*/*</code></h3><p>The extension supports user-selected HTTP and HTTPS sites, so these patterns are declared as optional_host_permissions. By default, access is requested for the host patterns in the user's rule when they save/enable it or click the site-permission button. Users may explicitly enable an all-site access option in settings, which requests both patterns together through Chrome's permission prompt. The option is off by default, and cancelling leaves individual-site requests available. It avoids repeated site prompts for users managing rules across many websites. Declaring these optional patterns does not itself grant access. Runtime matching always applies the user's rule patterns, exclusions and frame choice; broad permission does not automatically run code on unconfigured pages.</p></div>
+        <p>Turning all-site access off removes HTTP/HTTPS host grants, including earlier individual grants, under Chrome's permission semantics. The settings explain this and retain the individual-site permission button. Chrome manages actual grants; the UI reflects browser-side changes, and JSON import never grants access.</p>
+        <p>A user may also intentionally enter a wildcard rule covering many sites. It remains an explicit permission request for that user-selected scope. There are no required host_permissions.</p>
       </section>
       <section>
         <h2>User-provided code</h2>
-        <div class="copy-block"><p>Personal Page Tweaker is a user-script manager. Users explicitly enter JavaScript in the editor or select a local .user.js/backup file. Only this user-provided code is executed through chrome.userScripts on user-selected and individually permitted sites. The extension does not fetch executable code from URLs, CDNs or developer servers, use eval/new Function in extension contexts, or automatically install/update scripts. All extension logic is in the submitted package. User-script messaging to extension APIs is not enabled.</p></div>
+        <div class="copy-block"><p>Personal Page Tweaker is a user-script manager. Users explicitly enter JavaScript in the editor or select a local .user.js/backup file. Only this user-provided code is executed through chrome.userScripts on sites matching the user's rules and granted host access. Access is granted per site by default; users can explicitly opt into all HTTP/HTTPS sites. The extension does not fetch executable code from URLs, CDNs or developer servers, use eval/new Function in extension contexts, or automatically install/update scripts. All extension logic is in the submitted package. User-script messaging to extension APIs is not enabled.</p></div>
         <p>Extension pages use a bundled-only script CSP. User code is not evaluated in an extension page or passed to scripting.executeScript. See the <a href="https://developer.chrome.com/docs/extensions/reference/api/userScripts">User Scripts API</a> and <a href="https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements">Manifest V3 policy</a> for the applicable API.</p>
       </section>
       <section>
@@ -42,7 +43,8 @@
       <section id="japanese" lang="ja">
         <h2>権限について（日本語）</h2>
         <p>目的は、ユーザーが選んだサイトを自分のCSSとJavaScriptでカスタマイズすることです。</p>
-        <ul><li><code>activeTab</code>: ポップアップを開いたときのURLから、現在のサイトを表示・設定作成します。</li><li><code>scripting</code>: パッケージ内のCSS用処理を許可済みサイトで動かし、保存や停止を開いているページにも反映します。</li><li><code>storage</code>: 設定とImport前の復旧用コピーを端末内に保存します。</li><li><code>userScripts</code>: ユーザー自身が入力・取り込みしたJavaScriptを指定タイミングで実行します。</li><li>HTTP/HTTPSのホスト権限は、設定した対象サイトごとにユーザーに許可を求めます。対象URL・除外URLの条件も適用します。</li></ul>
+        <ul><li><code>activeTab</code>: ポップアップを開いたときのURLから、現在のサイトを表示・設定作成します。</li><li><code>scripting</code>: パッケージ内のCSS用処理を許可済みサイトで動かし、保存や停止を開いているページにも反映します。</li><li><code>storage</code>: 設定とImport前の復旧用コピーを端末内に保存します。</li><li><code>userScripts</code>: ユーザー自身が入力・取り込みしたJavaScriptを指定タイミングで実行します。</li><li>HTTP/HTTPSのホスト権限は、初期状態では対象サイトごとに許可を求めます。任意で設定画面から全サイトを一括許可でき、Chromeの確認をキャンセルしても個別許可で利用できます。いずれも各設定の対象URL・除外URL・フレーム条件に従って適用します。</li></ul>
+        <p>一括許可を解除すると以前の個別許可も解除されます。必要なサイトは各設定の「権限を許可」で許可し直せます。実際の権限はChromeが管理し、Export/Importには含めません。</p>
         <p>登録コードはページの情報を読んだり通信したりできます。拡張本体の管理処理は配布パッケージ内にあり、スクリプトURLからの自動取得・更新はしません。詳しくは<a href="./privacy.html">プライバシーポリシー</a>をご覧ください。</p>
       </section>
     </main>
