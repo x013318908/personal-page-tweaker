@@ -641,3 +641,10 @@ button:focus-visible, summary:focus-visible, select:focus-visible { outline: 2px
     min-height: 320px;
   }
 }
+/* The assistant stays outside the settings form: its text is not saved as a rule. */
+.ai-assistant { margin: 0 28px 24px; padding: 16px; border: 1px solid var(--border, #ccc); border-radius: 12px; }
+.ai-assistant summary { cursor: pointer; font-weight: 600; }
+.ai-assistant .field { margin: 12px 0; }
+.ai-assistant textarea { width: 100%; resize: vertical; }
+.ai-assistant pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-assistant p { line-height: 1.6; }

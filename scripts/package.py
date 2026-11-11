@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_FILES = [
     "manifest.json", "background.js", "shared.js", "content.js",
-    "popup.html", "popup.css", "popup.js", "options.html", "options.css", "options.js",
+    "popup.html", "popup.css", "popup.js", "options.html", "options.css", "options.js", "ai-helper.js",
 ]
 
 

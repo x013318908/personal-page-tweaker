@@ -134,8 +134,15 @@ Python 3.9以降の標準ライブラリだけで、検証済みの提出ファ�
 python scripts/package.py
 ```
 
-`dist/personal-page-tweaker-1.1.0.zip` とSHA-256ファイルを出力します。ZIPには実行用ファイルとアイコンだけを含め、テスト・公開サイト・開発用ファイルは含めません。
+`dist/personal-page-tweaker-1.2.0.zip` とSHA-256ファイルを出力します。ZIPには実行用ファイルとアイコンだけを含め、テスト・公開サイト・開発用ファイルは含めません。
 
 参考の [Read Later Is Broken](https://github.com/x013318908/Read-Later-Is-Broken) と同じく、紹介・プライバシー・権限説明は `docs/` をGitHub Pagesで公開する構成です。Pagesの有効化とストア入力欄の原稿は [公開手順](docs/publishing.md) に記載しています。アイコンやストア画像を再生成する場合は、`PPS_CHROMIUM` を設定して `node scripts/create-store-assets.cjs` を実行します。
 
 公式API資料: [Chrome userScripts API](https://developer.chrome.com/docs/extensions/reference/api/userScripts)
+## AIに設定を作ってもらう（1.2.0）
+
+設定画面の「AIに設定を作ってもらう」を開き、実現したいことや修正したい問題を入力します。「AIへの依頼文をコピー」で現在の編集中の設定と対応形式をまとめてコピーし、普段使っているAIのチャットに貼り付けてください。依頼文は画面上でも確認・手動コピーできます。
+
+AIが返したJSONを「AIの回答」に貼り付け、「内容を確認」から無効な下書きとして取り込みます。既存設定の修正なら「現在選択中の設定を修正する」を選択します。保存するまでは既存設定は変わりません。確認後に有効にして保存してください。JavaScriptの反映には対象ページの再読み込みが必要です。
+
+拡張からAIへの通信は行わず、APIキーも不要です。依頼文には現在のCSS・JavaScript・対象URLが含まれます。AIへの送信前に内容を確認してください。形式の検証はコードの安全性や動作の保証ではありません。

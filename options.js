@@ -11,6 +11,51 @@
   const report = error => { $("formError").textContent = error.message; setStatus("操作を完了できませんでした。", "danger"); };
   const guarded = fn => (...args) => Promise.resolve().then(() => fn(...args)).catch(report);
   const canLeave = () => !dirty || confirm("未保存の変更を破棄しますか？");
+  let aiCandidate = null;
+  function clearAiPreview() {
+    aiCandidate = null;
+    $("aiPreview").hidden = true;
+    $("aiReplaceCurrent").checked = false;
+  }
+  function aiAction(fn) {
+    return async () => {
+      try { await fn(); }
+      catch (error) { $("aiStatus").textContent = error.message; }
+    };
+  }
+  $("aiCopyButton").addEventListener("click", aiAction(async () => {
+    const prompt = PPTAI.buildPrompt(formValue(), $("aiRequest").value);
+    $("aiPrompt").value = prompt;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      $("aiStatus").textContent = "依頼文をコピーしました。AIのチャットに貼り付けてください。";
+    } catch {
+      $("aiPrompt").focus(); $("aiPrompt").select();
+      $("aiStatus").textContent = "自動コピーできませんでした。選択された依頼文をCtrl+Cでコピーしてください。";
+    }
+  }));
+  $("aiReply").addEventListener("input", clearAiPreview);
+  $("aiPreviewButton").addEventListener("click", aiAction(() => {
+    clearAiPreview();
+    aiCandidate = PPTAI.parseReply($("aiReply").value);
+    $("aiSummary").textContent = `${aiCandidate.name} / 対象: ${PPS.patternsForStyle(aiCandidate).join(", ")} / ${PPS.codeLabel(aiCandidate)}`;
+    $("aiCodePreview").textContent = JSON.stringify(aiCandidate, null, 2);
+    $("aiReplaceCurrent").disabled = !styles.some(style => style.id === draft.id);
+    $("aiPreview").hidden = false;
+    $("aiStatus").textContent = "形式を確認しました。コードの動作や安全性を保証する検査ではありません。";
+  }));
+  $("aiApplyButton").addEventListener("click", aiAction(() => {
+    if (busy || !aiCandidate || !canLeave()) return;
+    const candidate = structuredClone(aiCandidate);
+    if ($("aiReplaceCurrent").checked) {
+      candidate.id = draft.id;
+      candidate.createdAt = draft.createdAt;
+      candidate.updatedAt = draft.updatedAt;
+    }
+    showDraft(candidate); markDirty();
+    $("aiStatus").textContent = "無効な下書きとして取り込みました。編集欄で確認して保存してください。";
+    $("nameInput").focus();
+  }));
   function updateJsContentMarkers() {
     for (const runAt of PPS.RUN_ATS) {
       const id = jsEditors[runAt], tab = $(id + "Tab");
@@ -48,6 +93,7 @@
       world: $("worldInput").value, allFrames: $("allFramesInput").checked };
   }
   function showDraft(style) {
+    clearAiPreview();
     const sameStyle = style.id === draft.id;
     const codeTab = sameStyle
       ? ($("jsTab").getAttribute("aria-selected") === "true" ? "js" : "css")

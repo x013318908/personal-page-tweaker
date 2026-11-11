@@ -77,6 +77,23 @@
           <div id="saveStatus" class="save-status" role="status"></div>
         </header>
 
+        <details class="ai-assistant">
+          <summary>AIに設定を作ってもらう</summary>
+          <p>依頼文をコピーして、お使いのAIに貼り付けてください。現在の編集中の設定を含みます。この拡張からAIへの送信は行いません。</p>
+          <label class="field"><span>実現したいこと・直したい問題</span><textarea id="aiRequest" rows="3" placeholder="例：本文の文字を大きくしたい。見出しの色は今のままにしたい。"></textarea></label>
+          <button id="aiCopyButton" class="secondary-button" type="button">AIへの依頼文をコピー</button>
+          <label class="field"><span>依頼文（確認・手動コピー用）</span><textarea id="aiPrompt" rows="5" readonly></textarea></label>
+          <label class="field"><span>AIの回答（JSON）</span><textarea id="aiReply" rows="6" spellcheck="false"></textarea></label>
+          <button id="aiPreviewButton" class="secondary-button" type="button">内容を確認</button>
+          <div id="aiPreview" hidden>
+            <p id="aiSummary"></p>
+            <pre id="aiCodePreview"></pre>
+            <label class="check-field"><input id="aiReplaceCurrent" type="checkbox">現在選択中の設定を修正する（オフなら新規作成）</label>
+            <p>無効な下書きとして編集欄に取り込みます。保存するまでは既存設定に影響しません。内容の確認後、有効にして保存してください。</p>
+            <button id="aiApplyButton" class="secondary-button" type="button">下書きに取り込む</button>
+          </div>
+          <p id="aiStatus" role="status" aria-live="polite"></p>
+        </details>
         <form id="editorForm" class="editor-form">
           <div class="form-grid">
             <label class="field">
@@ -215,6 +232,7 @@
     </section>
 
     <script src="shared.js"></script>
+    <script src="ai-helper.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

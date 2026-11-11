@@ -54,6 +54,35 @@ if (!browserPath) throw new Error('Set PPS_CHROMIUM to a Chromium / Chrome for T
     console.log('Browser:', version.Browser, 'Extension:', extensionId);
     let options = await cdp.page(`chrome-extension://${extensionId}/options.html`);
     await cdp.wait(options, 'document.documentElement?.dataset.ready === "true"');
+    // Exercise the actual assistant controls without sending anything to an AI.
+    await cdp.eval(options, `(() => {
+      document.querySelector('.ai-assistant').open = true;
+      document.getElementById('aiRequest').value = 'Make headings larger';
+      document.getElementById('aiCopyButton').click();
+    })()`);
+    await cdp.wait(options, 'document.getElementById("aiPrompt").value.includes("Make headings larger")');
+    const aiRule = { name: 'AI draft', site: { matchPatterns: ['https://example.com/*'] }, excludeMatches: [], css: 'h1 { font-size: 30px; }', cssEnabled: true, jsByRunAt: { document_start: '', document_end: '', document_idle: 'globalThis.aiMustNotRun = true;' }, jsEnabled: true, world: 'USER_SCRIPT', allFrames: false };
+    await cdp.eval(options, `document.getElementById('aiReply').value=${JSON.stringify(JSON.stringify(aiRule))};document.getElementById('aiPreviewButton').click()`);
+    await cdp.wait(options, '!document.getElementById("aiPreview").hidden');
+    assert.equal(await cdp.eval(options, 'document.getElementById("aiReplaceCurrent").disabled'), true);
+    await cdp.eval(options, `document.getElementById('aiApplyButton').click()`);
+    assert.deepEqual(await cdp.eval(options, `({name:document.getElementById('nameInput').value,enabled:document.getElementById('enabledInput').checked,count:(await PPS.getStyles()).length,ran:!!globalThis.aiMustNotRun})`), { name: 'AI draft', enabled: false, count: 0, ran: false });
+    await cdp.eval(options, `document.getElementById('editorForm').requestSubmit()`);
+    await cdp.wait(options, '(await PPS.getStyles()).length === 1 && !document.getElementById("saveButton").disabled');
+    const aiId = await cdp.eval(options, '(await PPS.getStyles())[0].id');
+    await cdp.eval(options, `document.getElementById('aiReply').value=${JSON.stringify(JSON.stringify({ ...aiRule, name: 'AI revised' }))};document.getElementById('aiPreviewButton').click()`);
+    await cdp.wait(options, '!document.getElementById("aiPreview").hidden');
+    await cdp.eval(options, `document.getElementById('aiReplaceCurrent').checked=true;document.getElementById('aiApplyButton').click()`);
+    assert.equal(await cdp.eval(options, '(await PPS.getStyles())[0].name'), 'AI draft');
+    await cdp.eval(options, `document.getElementById('editorForm').requestSubmit()`);
+    await cdp.wait(options, '(await PPS.getStyles())[0].name === "AI revised" && !document.getElementById("saveButton").disabled');
+    assert.deepEqual(await cdp.eval(options, '(await PPS.getStyles()).map(s=>({id:s.id,enabled:s.enabled}))'), [{ id: aiId, enabled: false }]);
+    await cdp.eval(options, `document.getElementById('aiReply').value='{}';document.getElementById('aiPreviewButton').click()`);
+    assert.equal(await cdp.eval(options, 'document.getElementById("aiPreview").hidden'), true);
+    await cdp.eval(options, `PPS.mutate('delete',{id:${JSON.stringify(aiId)}})`);
+    await cdp.call('Page.reload', {}, options);
+    await cdp.wait(options, 'document.documentElement?.dataset.ready === "true"');
+    console.log('PASS: AI prompt, preview, disabled draft, explicit update and malformed reply preserve saved settings');
     assert.equal(await cdp.eval(options, 'PPS.permissionContains(PPS.ALL_SITE_ORIGINS)'), false);
     assert.deepEqual(await cdp.eval(options, `({checked:document.getElementById('allSitesInput').checked,disabled:document.getElementById('allSitesInput').disabled})`), { checked: false, disabled: false });
     // Simulate cancelling Chrome's prompt without granting anything in the test profile.
